@@ -1,28 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- Glowing Cyberpunk Axis Controller Body -->
-    <path
-        android:fillColor="#CCFF00"
-        android:pathData="M34,40 C31,40 27,43 25,50 L20,68 C19,72 22,76 26,76 C29,76 32,73 34,68 L38,58 L70,58 L74,68 C76,73 79,76 82,76 C86,76 89,72 88,68 L83,50 C81,43 77,40 74,40 Z" />
-
-    <!-- D-Pad Left Accent -->
-    <path
-        android:fillColor="#0D0F17"
-        android:pathData="M32,46 L36,46 L36,54 L32,54 Z M28,50 L40,50 L40,50 Z" />
-
-    <!-- Action Buttons Right Accent -->
-    <path
-        android:fillColor="#0D0F17"
-        android:pathData="M72,45 A2.5,2.5 0 1,1 71.99,45 Z M78,50 A2.5,2.5 0 1,1 77.99,50 Z M72,55 A2.5,2.5 0 1,1 71.99,55 Z M66,50 A2.5,2.5 0 1,1 65.99,50 Z" />
-
-    <!-- Center Axis Diamond -->
-    <path
-        android:fillColor="#0D0F17"
-        android:pathData="M54,44 L58,49 L54,54 L50,49 Z" />
-
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_axis_logo"
+    android:insetLeft="10dp"
+    android:insetRight="10dp"
+    android:insetTop="10dp"
+    android:insetBottom="10dp" />
