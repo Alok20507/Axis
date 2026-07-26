@@ -28,8 +28,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var responder = new DiscoveryResponder(message => LastDiscovery = message);
         _ = Task.Run(responder.RunAsync);
 
+        var vigemBackend = new ViGEmXbox360Backend();
         IVirtualGamepadBackend backend = OperatingSystem.IsWindows()
-            ? new ViGEmXbox360Backend()
+            ? vigemBackend
             : new UnavailableVirtualGamepadBackend("Virtual controller requires Windows with ViGEmBus driver.");
 
         var runtime = new ControllerRuntime(backend);
@@ -37,7 +38,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
         // Instantly connect virtual Xbox 360 controller on Windows startup
         _ = Task.Run(async () =>
         {
-            try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
+            try
+            {
+                await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false);
+                if (vigemBackend.IsConnected)
+                {
+                    ConnectionStatus = "🟢 Virtual Xbox 360 Controller Active (Steam / AAA Games Ready)";
+                }
+                else if (vigemBackend.LastError != null)
+                {
+                    ConnectionStatus = $"🔴 ViGEmBus Driver Missing: {vigemBackend.LastError}. Install ViGEmBus for Xbox 360 Gamepad support.";
+                }
+            }
             catch { }
         });
 
@@ -58,7 +70,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 controlReceiver.SessionKey = key;
                 SessionStore.SaveSessionKey(key);
-                ConnectionStatus = "Encrypted AES-256-GCM Session Active (120 Hz)";
+                ConnectionStatus = "🟢 120 Hz Active Session (Xbox 360 Connected)";
 
                 _ = Task.Run(async () =>
                 {

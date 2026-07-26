@@ -10,6 +10,7 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
     private ViGEmClient? _client;
     private IXbox360Controller? _controller;
     private bool _isConnected;
+    public string? LastError { get; private set; }
 
     public string DisplayName => "ViGEm virtual Xbox 360 controller";
     public bool IsConnected => _isConnected;
@@ -25,10 +26,12 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
             _controller = _client.CreateXbox360Controller();
             _controller.Connect();
             _isConnected = true;
+            LastError = null;
         }
         catch (Exception ex)
         {
             _isConnected = false;
+            LastError = ex.Message;
             System.Diagnostics.Debug.WriteLine($"ViGEmBus connection error: {ex.Message}");
         }
 
