@@ -2,12 +2,8 @@ package com.racelink.controller.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class ControllerPreferencesStore @Inject constructor(@ApplicationContext context: Context) {
+class ControllerPreferencesStore(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("axis_controller_preferences", Context.MODE_PRIVATE)
 
     var gyroSensitivity: Float
