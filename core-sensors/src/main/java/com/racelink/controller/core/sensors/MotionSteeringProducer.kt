@@ -8,22 +8,25 @@ import android.hardware.SensorManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.abs
-import kotlin.math.atan2
 
-data class MotionControlState(val steering: Float = 0f, val timestampNanos: Long = 0L)
+data class MotionControlState(
+    val roll: Float = 0f,    // Landscape Steering / Camera Yaw (-1.0 to +1.0)
+    val pitch: Float = 0f,   // Camera Pitch (-1.0 to +1.0)
+    val timestampNanos: Long = 0L
+)
 
-/** High-precision sensor motion producer for Gyro tilt steering (Sony DualSense style motion control). */
+/** High-precision sensor motion producer with landscape remapped coordinates for Sony DualSense tilt & aiming. */
 class MotionSteeringProducer(context: Context) : SensorEventListener, AutoCloseable {
     private val manager: SensorManager? = runCatching { context.getSystemService(SensorManager::class.java) }.getOrNull()
+    private val rotVector: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val gyro: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val accel: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val rotVector: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
     private val mutableState = MutableStateFlow(MotionControlState())
     val state = mutableState.asStateFlow()
 
-    var sensitivity: Float = 2.0f // Default high sensitivity multiplier so small 20° tilt turns 100%
-    var deadzone: Float = 0.03f
+    var sensitivity: Float = 2.0f // Default high sensitivity multiplier
+    var deadzone: Float = 0.02f
     private var isListening = false
 
     fun start() {
@@ -32,10 +35,10 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
         runCatching {
             if (rotVector != null) {
                 m.registerListener(this, rotVector, SensorManager.SENSOR_DELAY_GAME)
-            } else if (accel != null) {
-                m.registerListener(this, accel, SensorManager.SENSOR_DELAY_GAME)
             } else if (gyro != null) {
                 m.registerListener(this, gyro, SensorManager.SENSOR_DELAY_GAME)
+            } else if (accel != null) {
+                m.registerListener(this, accel, SensorManager.SENSOR_DELAY_GAME)
             }
             isListening = true
         }
@@ -46,32 +49,51 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
         runCatching {
             when (event.sensor.type) {
                 Sensor.TYPE_ROTATION_VECTOR -> {
-                    // Convert rotation vector to orientation angles (roll for steering)
                     val rotationMatrix = FloatArray(9)
                     SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+
+                    // Remap coordinate system for Landscape orientation (top of phone is left)
+                    val remappedMatrix = FloatArray(9)
+                    SensorManager.remapCoordinateSystem(
+                        rotationMatrix,
+                        SensorManager.AXIS_Y,
+                        SensorManager.AXIS_MINUS_X,
+                        remappedMatrix
+                    )
+
                     val orientation = FloatArray(3)
-                    SensorManager.getOrientation(rotationMatrix, orientation)
-                    
-                    // orientation[2] is roll in radians (landscape steering angle)
-                    val rollRadians = orientation[2]
-                    val rawSteering = (-rollRadians * sensitivity).coerceIn(-1f, 1f)
-                    val steering = if (abs(rawSteering) < deadzone) 0f else rawSteering
-                    mutableState.value = MotionControlState(steering, event.timestamp)
+                    SensorManager.getOrientation(remappedMatrix, orientation)
+
+                    // orientation[2] = Roll angle in landscape (Steering / Yaw)
+                    // orientation[1] = Pitch angle in landscape (Camera Pitch)
+                    val rawRoll = (-orientation[2] * sensitivity * 0.8f).coerceIn(-1f, 1f)
+                    val rawPitch = (-orientation[1] * sensitivity * 0.8f).coerceIn(-1f, 1f)
+
+                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
+                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+
+                    mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
                 }
                 Sensor.TYPE_ACCELEROMETER -> {
-                    // Fallback using accelerometer roll angle calculation
+                    // Fallback landscape tilt calculation: ax is vertical tilt in landscape
                     val ax = event.values[0]
                     val ay = event.values[1]
-                    // Roll angle in landscape
-                    val roll = atan2(ay.toDouble(), ax.toDouble()).toFloat()
-                    val rawSteering = (roll * sensitivity * 0.8f).coerceIn(-1f, 1f)
-                    val steering = if (abs(rawSteering) < deadzone) 0f else rawSteering
-                    mutableState.value = MotionControlState(steering, event.timestamp)
+                    val rawRoll = (ay / 7f * sensitivity).coerceIn(-1f, 1f)
+                    val rawPitch = (-ax / 7f * sensitivity).coerceIn(-1f, 1f)
+
+                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
+                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+
+                    mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
                 }
                 Sensor.TYPE_GYROSCOPE -> {
-                    val rawSteering = (event.values[1] * sensitivity * 0.5f).coerceIn(-1f, 1f)
-                    val steering = if (abs(rawSteering) < deadzone) 0f else rawSteering
-                    mutableState.value = MotionControlState(steering, event.timestamp)
+                    val rawRoll = (event.values[1] * sensitivity * 0.4f).coerceIn(-1f, 1f)
+                    val rawPitch = (event.values[0] * sensitivity * 0.4f).coerceIn(-1f, 1f)
+
+                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
+                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+
+                    mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
                 }
             }
         }

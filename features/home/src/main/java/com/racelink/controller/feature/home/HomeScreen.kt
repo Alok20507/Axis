@@ -38,14 +38,13 @@ fun HomeRoute(
     onSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeScreen(state, onConnect, onProfiles, onSettings)
+    HomeScreen(state, onConnect, onSettings)
 }
 
 @Composable
 private fun HomeScreen(
     state: HomeUiState,
     onConnect: () -> Unit,
-    onProfiles: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Column(
@@ -61,23 +60,37 @@ private fun HomeScreen(
             )
             Text("AXIS", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
         }
-        Text("Ready to drive.", fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold)
+        Text("Ready to play.", fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold)
 
         Text("A precision controller for your PC.", color = MaterialTheme.colorScheme.secondary, fontSize = 16.sp)
         Spacer(Modifier.height(8.dp))
         StatusCard(state)
+        
         Button(
             onClick = onConnect,
             modifier = Modifier.fillMaxWidth().height(58.dp),
             shape = RoundedCornerShape(18.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-        ) { Text("Connect to PC", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
-        SectionCard("Current profile", state.currentProfile, "Tune steering, pedals and haptics", onProfiles)
-        SectionCard("Recent games", "No sessions yet", "Your recent driving sessions appear here", onConnect)
+        ) {
+            Text("Connect to PC", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
+
         Spacer(Modifier.weight(1f))
-        Text("Settings", modifier = Modifier.align(Alignment.End).padding(8.dp), color = MaterialTheme.colorScheme.secondary, fontSize = 15.sp)
-        Surface(onClick = onSettings, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-            Text("Controller preferences", modifier = Modifier.padding(18.dp), fontWeight = FontWeight.Medium)
+
+        Surface(
+            onClick = onSettings,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("⚙️ Controller preferences", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text("→", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
@@ -93,17 +106,6 @@ private fun StatusCard(state: HomeUiState) {
                 Spacer(Modifier.width(20.dp))
                 Text(state.latencyMs?.let { "$it ms" } ?: "Latency —", color = MaterialTheme.colorScheme.secondary)
             }
-        }
-    }
-}
-
-@Composable
-private fun SectionCard(title: String, value: String, detail: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
-            Text(value, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-            Text(detail, color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
         }
     }
 }

@@ -129,15 +129,27 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
                 val buffer = ByteBuffer.allocate(256)
                 while (isActive) {
                     val s = mutableState.value
-                    val lsX = if (s.useGyro) motionProducer.state.value.steering else s.leftStickX
+                    val motion = motionProducer.state.value
+
+                    // Steering Wheel (Left Stick X) in RACING mode, or touch stick
+                    val lsX = if (s.useGyro && s.mode == ControllerMode.RACING) motion.roll else s.leftStickX
+
+                    // Camera Aiming (Right Stick X & Y) in GAMEPAD mode (Sony DualSense Motion Aim)
+                    val rsX = if (s.useGyro && s.mode == ControllerMode.GAMEPAD) {
+                        (s.rightStickX + motion.roll).coerceIn(-1f, 1f)
+                    } else s.rightStickX
+
+                    val rsY = if (s.useGyro && s.mode == ControllerMode.GAMEPAD) {
+                        (s.rightStickY + motion.pitch).coerceIn(-1f, 1f)
+                    } else s.rightStickY
 
                     val frame = WireControlFrame(
                         sequence = sequence.getAndIncrement(),
                         timestampNanos = System.nanoTime(),
                         leftStickX = lsX,
                         leftStickY = s.leftStickY,
-                        rightStickX = s.rightStickX,
-                        rightStickY = s.rightStickY,
+                        rightStickX = rsX,
+                        rightStickY = rsY,
                         throttle = s.throttle,
                         brake = s.brake,
                         handbrake = s.handbrake,

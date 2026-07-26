@@ -1,6 +1,5 @@
 package com.racelink.controller.feature.home
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,14 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -32,12 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.racelink.controller.core.storage.ControllerPreferencesStore
-import com.racelink.controller.core.ui.R
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -76,20 +70,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) {
                     Text("← Back", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text("Controller Preferences", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Controller Preferences", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             }
 
             Text(
                 "Customize sensor calibration, motion gyro tilt sensitivity, thumbstick deadzones, and haptics.",
                 color = MaterialTheme.colorScheme.secondary,
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
 
             // 1. Gyro Steering Sensitivity
             PreferenceCard(
-                title = "🏎️ Motion Steering / Gyro Sensitivity",
+                title = "🏎️ Motion Steering / Gyro",
                 value = String.format("%.1fx multiplier", gyroSensitivity),
-                description = "Adjust how responsive the steering wheel is when tilting your phone."
+                description = "Adjust responsiveness when tilting phone (steering in Racing mode, camera aiming in Gamepad mode)."
             ) {
                 Slider(
                     value = gyroSensitivity,
@@ -151,7 +145,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("⚡ Haptic Vibration Feedback", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("⚡ Haptic Vibration Feedback", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text("Vibrate phone on button taps and trigger clicks", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
                     }
                     Switch(
@@ -174,8 +168,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("📐 Gyroscope Horizon Calibration", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Hold your phone horizontally in your natural driving posture and tap calibrate.", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
+                    Text("📐 Gyroscope Horizon Calibration", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Hold your phone horizontally in your natural posture and tap calibrate.", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
                     
                     Button(
                         onClick = {
@@ -220,8 +214,20 @@ private fun PreferenceCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                Text(value, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1
+                )
+                Text(
+                    value,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1
+                )
             }
             Text(description, color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
             content()
