@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -67,8 +69,14 @@ private fun ConnectScreen(
     onManualProbe: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.background, contentColor = MaterialTheme.colorScheme.onBackground, modifier = Modifier.fillMaxSize()) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Spacer(Modifier.height(20.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_axis_logo),
@@ -112,7 +120,7 @@ private fun ConnectScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = state.manualAddress,
-                    onValueChange = onManualAddressChange,
+                    onValueChange = onPinChange,
                     singleLine = true,
                     label = { Text("PC address") },
                     modifier = Modifier.weight(1f)

@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Axis.Desktop.Views.MainWindow" Width="640" Height="560" Title="Axis Desktop" Icon="/Assets/axis_icon.png">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Axis.Desktop.Views.MainWindow" Width="640" Height="560" Title="Axis Desktop" Icon="/Assets/axis_icon.ico">
   <Border Background="#090A0C" Padding="32"><StackPanel Spacing="16">
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
       <Image Source="/Assets/axis_icon.png" Width="44" Height="44"/>
