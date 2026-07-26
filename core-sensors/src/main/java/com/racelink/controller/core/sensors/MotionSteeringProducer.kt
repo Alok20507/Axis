@@ -25,10 +25,14 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
     private var isListening = false
 
     fun start() {
-        if (isListening || manager == null) return
+        val m = manager ?: return
+        if (isListening) return
         runCatching {
-            gyro?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-                ?: accel?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+            if (gyro != null) {
+                m.registerListener(this, gyro, SensorManager.SENSOR_DELAY_GAME)
+            } else if (accel != null) {
+                m.registerListener(this, accel, SensorManager.SENSOR_DELAY_GAME)
+            }
             isListening = true
         }
     }
@@ -40,14 +44,12 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
                 Sensor.TYPE_GYROSCOPE -> {
                     val dt = if (lastTimestamp == 0L) 0f else ((event.timestamp - lastTimestamp) / 1_000_000_000f).coerceIn(0f, 0.05f)
                     lastTimestamp = event.timestamp
-                    // Y-axis gyro rotation for steering tilt
                     filteredRadians = (filteredRadians + event.values[1] * dt).coerceIn(-1.57f, 1.57f)
                     val raw = filteredRadians / 1.2f
                     val steering = if (abs(raw) < 0.03f) 0f else raw.coerceIn(-1f, 1f)
                     mutableState.value = MotionControlState(steering, event.timestamp)
                 }
                 Sensor.TYPE_ACCELEROMETER -> {
-                    // Accelerometer X-axis tilt fallback
                     val tiltX = (-event.values[0] / 8f).coerceIn(-1f, 1f)
                     val steering = if (abs(tiltX) < 0.05f) 0f else tiltX
                     mutableState.value = MotionControlState(steering, event.timestamp)
@@ -59,9 +61,10 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     override fun close() {
-        if (!isListening || manager == null) return
+        val m = manager ?: return
+        if (!isListening) return
         runCatching {
-            manager.unregisterListener(this)
+            m.unregisterListener(this)
             isListening = false
             lastTimestamp = 0L
             filteredRadians = 0f
