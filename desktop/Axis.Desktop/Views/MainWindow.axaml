@@ -15,7 +15,7 @@
     </StackPanel></Border>
 
     <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="8">
-      <TextBlock Text="Pairing & Encryption" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+      <TextBlock Text="Pairing &amp; Encryption" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
       <TextBlock Text="{Binding PairingStatus}" Foreground="#D6FF61" FontSize="18" FontWeight="Bold"/>
       <TextBlock Text="{Binding ConnectionStatus}" Foreground="#B7C7D6" FontSize="14"/>
     </StackPanel></Border>
