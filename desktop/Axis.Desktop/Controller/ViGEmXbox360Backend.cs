@@ -29,10 +29,20 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
     {
         cancellationToken.ThrowIfCancellationRequested();
         var controller = _controller ?? throw new InvalidOperationException("Virtual controller is not connected.");
+
+        // Dual Thumbsticks
         controller.SetAxisValue(Xbox360Axis.LeftThumbX, report.LeftThumbX);
+        controller.SetAxisValue(Xbox360Axis.LeftThumbY, report.LeftThumbY);
+        controller.SetAxisValue(Xbox360Axis.RightThumbX, report.RightThumbX);
+        controller.SetAxisValue(Xbox360Axis.RightThumbY, report.RightThumbY);
+
+        // Analog Triggers
         controller.SetSliderValue(Xbox360Slider.LeftTrigger, report.LeftTrigger);
         controller.SetSliderValue(Xbox360Slider.RightTrigger, report.RightTrigger);
+
+        // Digital Buttons & D-Pad
         SetButtons(controller, report.Buttons);
+
         controller.SubmitReport();
         return ValueTask.CompletedTask;
     }
@@ -59,8 +69,19 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
     }
 
     private static readonly (Xbox360Button button, XboxButtons source)[] ButtonMap = [
-        (Xbox360Button.A, XboxButtons.A), (Xbox360Button.B, XboxButtons.B), (Xbox360Button.X, XboxButtons.X), (Xbox360Button.Y, XboxButtons.Y),
-        (Xbox360Button.Start, XboxButtons.Start), (Xbox360Button.Back, XboxButtons.Back), (Xbox360Button.LeftShoulder, XboxButtons.LeftShoulder), (Xbox360Button.RightShoulder, XboxButtons.RightShoulder),
-        (Xbox360Button.Up, XboxButtons.DPadUp), (Xbox360Button.Down, XboxButtons.DPadDown), (Xbox360Button.Left, XboxButtons.DPadLeft), (Xbox360Button.Right, XboxButtons.DPadRight),
+        (Xbox360Button.A, XboxButtons.A),
+        (Xbox360Button.B, XboxButtons.B),
+        (Xbox360Button.X, XboxButtons.X),
+        (Xbox360Button.Y, XboxButtons.Y),
+        (Xbox360Button.Start, XboxButtons.Start),
+        (Xbox360Button.Back, XboxButtons.Back),
+        (Xbox360Button.LeftThumb, XboxButtons.LeftThumb),
+        (Xbox360Button.RightThumb, XboxButtons.RightThumb),
+        (Xbox360Button.LeftShoulder, XboxButtons.LeftShoulder),
+        (Xbox360Button.RightShoulder, XboxButtons.RightShoulder),
+        (Xbox360Button.Up, XboxButtons.DPadUp),
+        (Xbox360Button.Down, XboxButtons.DPadDown),
+        (Xbox360Button.Left, XboxButtons.DPadLeft),
+        (Xbox360Button.Right, XboxButtons.DPadRight),
     ];
 }

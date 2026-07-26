@@ -61,6 +61,9 @@ fun ControllerRoute(
     }
     ControllerScreen(
         state = state,
+        onModeChange = viewModel::setMode,
+        onLeftStickChange = viewModel::setLeftStick,
+        onRightStickChange = viewModel::setRightStick,
         onSteeringChange = viewModel::setSteering,
         onThrottleChange = viewModel::setThrottle,
         onBrakeChange = viewModel::setBrake,
@@ -74,6 +77,9 @@ fun ControllerRoute(
 @Composable
 private fun ControllerScreen(
     state: ControllerUiState,
+    onModeChange: (ControllerMode) -> Unit,
+    onLeftStickChange: (Float, Float) -> Unit,
+    onRightStickChange: (Float, Float) -> Unit,
     onSteeringChange: (Float) -> Unit,
     onThrottleChange: (Float) -> Unit,
     onBrakeChange: (Float) -> Unit,
@@ -91,9 +97,9 @@ private fun ControllerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            // Header Bar (Safe padding from status bar / camera cutout)
+            // Header Bar (Mode Switcher, Status, Back)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -101,158 +107,385 @@ private fun ControllerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Button(
-                    onClick = onBack,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2026)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("← Back", color = Color.White, fontSize = 13.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onBack,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2026)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("← Back", color = Color.White, fontSize = 12.sp)
+                    }
+
+                    // Mode Toggle: Gamepad (God of War / GTA V) vs Racing Wheel
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF16181F))
+                            .padding(2.dp)
+                    ) {
+                        Button(
+                            onClick = { onModeChange(ControllerMode.GAMEPAD) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (state.mode == ControllerMode.GAMEPAD) Color(0xFFD6FF61) else Color.Transparent,
+                                contentColor = if (state.mode == ControllerMode.GAMEPAD) Color.Black else Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text("🎮 Gamepad", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = { onModeChange(ControllerMode.RACING) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (state.mode == ControllerMode.RACING) Color(0xFFD6FF61) else Color.Transparent,
+                                contentColor = if (state.mode == ControllerMode.RACING) Color.Black else Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text("🏎️ Wheel", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD6FF61)))
-                    Text(state.hostAddress.ifBlank { "PC Companion" }, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-
-                Button(
-                    onClick = { onToggleGyro(!state.useGyro) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (state.useGyro) Color(0xFFD6FF61) else Color(0xFF1E2026),
-                        contentColor = if (state.useGyro) Color.Black else Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(if (state.useGyro) "Gyro ON" else "Gyro OFF", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = { onToggleGyro(!state.useGyro) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (state.useGyro) Color(0xFFD6FF61) else Color(0xFF1E2026),
+                            contentColor = if (state.useGyro) Color.Black else Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(if (state.useGyro) "Gyro ON" else "Gyro OFF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
 
-            // Main Controller Workspace Grid
+            if (state.mode == ControllerMode.GAMEPAD) {
+                // Full Action Gamepad View (God of War, GTA V, Elden Ring)
+                GamepadView(
+                    state = state,
+                    onLeftStickChange = onLeftStickChange,
+                    onRightStickChange = onRightStickChange,
+                    onThrottleChange = onThrottleChange,
+                    onBrakeChange = onBrakeChange,
+                    onButtonFlag = onButtonFlag
+                )
+            } else {
+                // Racing Wheel View (Forza, NFS, Assetto Corsa)
+                RacingWheelView(
+                    state = state,
+                    onSteeringChange = onSteeringChange,
+                    onThrottleChange = onThrottleChange,
+                    onBrakeChange = onBrakeChange,
+                    onHandbrakeToggle = onHandbrakeToggle,
+                    onButtonFlag = onButtonFlag
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GamepadView(
+    state: ControllerUiState,
+    onLeftStickChange: (Float, Float) -> Unit,
+    onRightStickChange: (Float, Float) -> Unit,
+    onThrottleChange: (Float) -> Unit,
+    onBrakeChange: (Float) -> Unit,
+    onButtonFlag: (Short, Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left Column: LT / LB + Left Stick (Move) + D-Pad
+        Column(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceAround
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TriggerButton("LT (Aim)", state.brake) { onBrakeChange(it) }
+                BumperButton("LB", 0x0100.toShort(), onButtonFlag)
+            }
+
+            Text("LS (Move)", fontSize = 10.sp, color = Color.Gray)
+            VirtualJoystick(
+                valueX = state.leftStickX,
+                valueY = state.leftStickY,
+                onValueChange = onLeftStickChange,
+                modifier = Modifier.size(130.dp)
+            )
+
+            // D-Pad
+            DPadCluster(onButtonFlag)
+        }
+
+        // Center Column: Start, Back, Axis Logo
+        Column(
+            modifier = Modifier.width(90.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_axis_logo),
+                contentDescription = "Axis Hub",
+                modifier = Modifier.size(40.dp).clip(CircleShape)
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ControllerButton("SELECT", Color(0xFF2A2D37), fontSize = 8.sp, size = 32.dp) { onButtonFlag(0x0020.toShort(), it) }
+                ControllerButton("START", Color(0xFF2A2D37), fontSize = 8.sp, size = 32.dp) { onButtonFlag(0x0010.toShort(), it) }
+            }
+        }
+
+        // Right Column: RT / RB + Right Stick (Camera) + ABXY Cluster
+        Column(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceAround
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                BumperButton("RB", 0x0200.toShort(), onButtonFlag)
+                TriggerButton("RT (Attack)", state.throttle) { onThrottleChange(it) }
+            }
+
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left Controls Column: Brake & Handbrake
+                // ABXY Diamond Cluster
                 Column(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .fillMaxHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    PedalSlider(
-                        value = state.brake,
-                        onValueChange = onBrakeChange,
-                        fillColor = Color(0xFFFF4D4D),
-                        modifier = Modifier
-                            .weight(1f)
-                            .width(52.dp)
-                    )
-                    Button(
-                        onClick = {},
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp)
-                            .pointerInput(Unit) {
-                                detectDragGestures(
-                                    onDragStart = { onHandbrakeToggle(true) },
-                                    onDragEnd = { onHandbrakeToggle(false) },
-                                    onDragCancel = { onHandbrakeToggle(false) },
-                                    onDrag = { _, _ -> }
-                                )
-                            },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
-                    ) {
-                        Text("HAND\nBRAKE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    ControllerButton("Y", Color(0xFFFFD166)) { onButtonFlag(0x8000.toShort(), it) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ControllerButton("X", Color(0xFF118AB2)) { onButtonFlag(0x4000.toShort(), it) }
+                        ControllerButton("B", Color(0xFFEF476F)) { onButtonFlag(0x2000.toShort(), it) }
                     }
+                    ControllerButton("A", Color(0xFF06D6A0)) { onButtonFlag(0x1000.toShort(), it) }
                 }
 
-                Spacer(Modifier.width(12.dp))
-
-                // Center Column: Steering Wheel & Angle Readout
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        InteractiveSteeringWheel(
-                            steering = state.steering,
-                            onSteeringChange = onSteeringChange,
-                            modifier = Modifier.size(200.dp)
-                        )
-                        // Axis Brand Icon in Hub
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_axis_logo),
-                            contentDescription = "Axis Logo Hub",
-                            modifier = Modifier.size(44.dp).clip(CircleShape)
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(
-                        text = "Steering: ${(state.steering * 100).toInt()}%",
-                        color = Color(0xFFD6FF61),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold
+                // Right Stick (Camera)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("RS (Look)", fontSize = 10.sp, color = Color.Gray)
+                    VirtualJoystick(
+                        valueX = state.rightStickX,
+                        valueY = state.rightStickY,
+                        onValueChange = onRightStickChange,
+                        modifier = Modifier.size(130.dp)
                     )
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                // Right Controls Column: Throttle & ABXY Buttons
-                Column(
-                    modifier = Modifier
-                        .width(120.dp)
-                        .fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        PedalSlider(
-                            value = state.throttle,
-                            onValueChange = onThrottleChange,
-                            fillColor = Color(0xFFD6FF61),
-                            modifier = Modifier
-                                .width(52.dp)
-                                .fillMaxHeight()
-                        )
-
-                        // ABXY Diamond Button Cluster
-                        Column(
-                            modifier = Modifier.fillMaxHeight(),
-                            verticalArrangement = Arrangement.SpaceEvenly,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            ControllerButton("Y", Color(0xFFFFD166)) { onButtonFlag(0x8000.toShort(), it) }
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                ControllerButton("X", Color(0xFF118AB2)) { onButtonFlag(0x4000.toShort(), it) }
-                                ControllerButton("B", Color(0xFFEF476F)) { onButtonFlag(0x2000.toShort(), it) }
-                            }
-                            ControllerButton("A", Color(0xFF06D6A0)) { onButtonFlag(0x1000.toShort(), it) }
-                        }
-                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RacingWheelView(
+    state: ControllerUiState,
+    onSteeringChange: (Float) -> Unit,
+    onThrottleChange: (Float) -> Unit,
+    onBrakeChange: (Float) -> Unit,
+    onHandbrakeToggle: (Boolean) -> Unit,
+    onButtonFlag: (Short, Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left Column: Brake & Handbrake
+        Column(
+            modifier = Modifier.width(68.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            PedalSlider(
+                value = state.brake,
+                onValueChange = onBrakeChange,
+                fillColor = Color(0xFFFF4D4D),
+                modifier = Modifier.weight(1f).width(48.dp)
+            )
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { onHandbrakeToggle(true) },
+                            onDragEnd = { onHandbrakeToggle(false) },
+                            onDragCancel = { onHandbrakeToggle(false) },
+                            onDrag = { _, _ -> }
+                        )
+                    },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
+            ) {
+                Text("HANDBRAKE", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Center Column: Steering Wheel
+        Column(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                InteractiveSteeringWheel(
+                    steering = state.leftStickX,
+                    onSteeringChange = onSteeringChange,
+                    modifier = Modifier.size(190.dp)
+                )
+                Image(
+                    painter = painterResource(id = R.drawable.ic_axis_logo),
+                    contentDescription = "Axis Logo",
+                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Steering: ${(state.leftStickX * 100).toInt()}%",
+                color = Color(0xFFD6FF61),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Right Column: Throttle & ABXY Buttons
+        Column(
+            modifier = Modifier.width(120.dp).fillMaxHeight(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PedalSlider(
+                    value = state.throttle,
+                    onValueChange = onThrottleChange,
+                    fillColor = Color(0xFFD6FF61),
+                    modifier = Modifier.width(48.dp).fillMaxHeight()
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    ControllerButton("Y", Color(0xFFFFD166)) { onButtonFlag(0x8000.toShort(), it) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ControllerButton("X", Color(0xFF118AB2)) { onButtonFlag(0x4000.toShort(), it) }
+                        ControllerButton("B", Color(0xFFEF476F)) { onButtonFlag(0x2000.toShort(), it) }
+                    }
+                    ControllerButton("A", Color(0xFF06D6A0)) { onButtonFlag(0x1000.toShort(), it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VirtualJoystick(
+    valueX: Float,
+    valueY: Float,
+    onValueChange: (Float, Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color(0xFF16181F))
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val radius = size.width / 2f
+                        val dx = (offset.x - radius) / radius
+                        val dy = -(offset.y - radius) / radius
+                        onValueChange(dx.coerceIn(-1f, 1f), dy.coerceIn(-1f, 1f))
+                    },
+                    onDrag = { change, _ ->
+                        val radius = size.width / 2f
+                        val dx = (change.position.x - radius) / radius
+                        val dy = -(change.position.y - radius) / radius
+                        onValueChange(dx.coerceIn(-1f, 1f), dy.coerceIn(-1f, 1f))
+                    },
+                    onDragEnd = { onValueChange(0f, 0f) },
+                    onDragCancel = { onValueChange(0f, 0f) }
+                )
+            }
+    ) {
+        val knobOffsetX = (valueX * 36).dp
+        val knobOffsetY = (-valueY * 36).dp
+
+        Box(
+            modifier = Modifier
+                .padding(start = knobOffsetX, top = knobOffsetY)
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFD6FF61))
+        )
+    }
+}
+
+@Composable
+private fun DPadCluster(onButtonFlag: (Short, Boolean) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        ControllerButton("▲", Color(0xFF252831), size = 28.dp) { onButtonFlag(0x0001.toShort(), it) }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            ControllerButton("◀", Color(0xFF252831), size = 28.dp) { onButtonFlag(0x0004.toShort(), it) }
+            Box(Modifier.size(28.dp))
+            ControllerButton("▶", Color(0xFF252831), size = 28.dp) { onButtonFlag(0x0008.toShort(), it) }
+        }
+        ControllerButton("▼", Color(0xFF252831), size = 28.dp) { onButtonFlag(0x0002.toShort(), it) }
+    }
+}
+
+@Composable
+private fun TriggerButton(text: String, value: Float, onValueChange: (Float) -> Unit) {
+    Button(
+        onClick = {},
+        colors = ButtonDefaults.buttonColors(containerColor = if (value > 0.1f) Color(0xFFD6FF61) else Color(0xFF1E2026)),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .height(34.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { onValueChange(1f) },
+                    onDragEnd = { onValueChange(0f) },
+                    onDragCancel = { onValueChange(0f) },
+                    onDrag = { _, _ -> }
+                )
+            }
+    ) {
+        Text(text, fontSize = 10.sp, color = if (value > 0.1f) Color.Black else Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun BumperButton(text: String, flag: Short, onButtonFlag: (Short, Boolean) -> Unit) {
+    ControllerButton(text, Color(0xFF1E2026), fontSize = 10.sp, size = 34.dp) { onButtonFlag(flag, it) }
 }
 
 @Composable
@@ -264,7 +497,7 @@ private fun PedalSlider(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFF16181F))
             .pointerInput(Unit) {
                 detectDragGestures(
@@ -328,15 +561,7 @@ private fun InteractiveSteeringWheel(
         val rotationAngle = steering * 180f
 
         rotate(rotationAngle, pivot = center) {
-            // Outer Carbon Rim
-            drawCircle(
-                color = Color(0xFF1E2027),
-                radius = radius,
-                center = center,
-                style = Stroke(width = 24.dp.toPx())
-            )
-
-            // Top Neon Center Marker
+            drawCircle(color = Color(0xFF1E2027), radius = radius, center = center, style = Stroke(width = 22.dp.toPx()))
             drawArc(
                 color = Color(0xFFD6FF61),
                 startAngle = -100f,
@@ -344,19 +569,15 @@ private fun InteractiveSteeringWheel(
                 useCenter = false,
                 topLeft = Offset(center.x - radius, center.y - radius),
                 size = Size(radius * 2, radius * 2),
-                style = Stroke(width = 24.dp.toPx())
+                style = Stroke(width = 22.dp.toPx())
             )
-
-            // Inner Metallic Spokes (X-Shape)
             val path = Path().apply {
                 moveTo(center.x - radius * 0.7f, center.y - radius * 0.7f)
                 lineTo(center.x + radius * 0.7f, center.y + radius * 0.7f)
                 moveTo(center.x + radius * 0.7f, center.y - radius * 0.7f)
                 lineTo(center.x - radius * 0.7f, center.y + radius * 0.7f)
             }
-            drawPath(path, color = Color(0xFF353842), style = Stroke(width = 10.dp.toPx()))
-
-            // Center Axis Ring
+            drawPath(path, color = Color(0xFF353842), style = Stroke(width = 8.dp.toPx()))
             drawCircle(color = Color(0xFFD6FF61), radius = radius * 0.32f, center = center, style = Stroke(width = 2.dp.toPx()))
         }
     }
@@ -366,12 +587,14 @@ private fun InteractiveSteeringWheel(
 private fun ControllerButton(
     text: String,
     color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
+    size: androidx.compose.ui.unit.Dp = 34.dp,
     onPress: (Boolean) -> Unit,
 ) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(34.dp)
+            .size(size)
             .clip(CircleShape)
             .background(color.copy(alpha = 0.9f))
             .pointerInput(Unit) {
@@ -383,6 +606,6 @@ private fun ControllerButton(
                 )
             }
     ) {
-        Text(text, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color.White, fontSize = fontSize, fontWeight = FontWeight.Bold)
     }
 }

@@ -35,7 +35,7 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
         ReadOnlySpan<byte> frame = buffer;
 
         // AES-GCM Encrypted packet handling (IV: 12B + Len: 4B + CipherText: N)
-        if (sessionKey != null && buffer.Length >= 12 + 4 + 38)
+        if (sessionKey != null && buffer.Length >= 12 + 4 + 36)
         {
             try
             {
@@ -58,16 +58,35 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
 
         if (frame.Length < 36 || BinaryPrimitives.ReadUInt32BigEndian(frame) != 0x524C4E4B || BinaryPrimitives.ReadUInt16BigEndian(frame[4..]) != 1) return false;
 
-        var steering = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
-        var throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
-        var brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
-        var handbrake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
-        var buttonFlags = frame.Length >= 38 ? BinaryPrimitives.ReadUInt16BigEndian(frame[36..]) : (ushort)0;
+        float lsX = 0f, lsY = 0f, rsX = 0f, rsY = 0f, throttle = 0f, brake = 0f, handbrake = 0f;
+        ushort buttonFlags = 0;
 
-        if (!float.IsFinite(steering) || !float.IsFinite(throttle) || !float.IsFinite(brake) || !float.IsFinite(handbrake)) return false;
+        if (frame.Length >= 46)
+        {
+            lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
+            lsY = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
+            rsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
+            rsY = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
+            throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[36..]));
+            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[40..]));
+            buttonFlags = BinaryPrimitives.ReadUInt16BigEndian(frame[44..]);
+        }
+        else
+        {
+            lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
+            throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
+            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
+            handbrake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
+            buttonFlags = frame.Length >= 38 ? BinaryPrimitives.ReadUInt16BigEndian(frame[36..]) : (ushort)0;
+        }
+
+        if (!float.IsFinite(lsX) || !float.IsFinite(lsY) || !float.IsFinite(rsX) || !float.IsFinite(rsY) || !float.IsFinite(throttle) || !float.IsFinite(brake)) return false;
 
         state = new(
-            Math.Clamp(steering, -1f, 1f),
+            Math.Clamp(lsX, -1f, 1f),
+            Math.Clamp(lsY, -1f, 1f),
+            Math.Clamp(rsX, -1f, 1f),
+            Math.Clamp(rsY, -1f, 1f),
             Math.Clamp(throttle, 0f, 1f),
             Math.Clamp(brake, 0f, 1f),
             Math.Clamp(handbrake, 0f, 1f),

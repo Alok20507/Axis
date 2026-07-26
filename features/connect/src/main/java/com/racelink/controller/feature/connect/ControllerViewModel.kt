@@ -21,11 +21,19 @@ import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicInteger
 
+enum class ControllerMode {
+    GAMEPAD, RACING
+}
+
 data class ControllerUiState(
     val hostAddress: String = "",
     val isConnected: Boolean = true,
+    val mode: ControllerMode = ControllerMode.GAMEPAD,
     val useGyro: Boolean = false,
-    val steering: Float = 0f,
+    val leftStickX: Float = 0f,
+    val leftStickY: Float = 0f,
+    val rightStickX: Float = 0f,
+    val rightStickY: Float = 0f,
     val throttle: Float = 0f,
     val brake: Float = 0f,
     val handbrake: Float = 0f,
@@ -52,6 +60,11 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
         startControlLoop()
     }
 
+    fun setMode(newMode: ControllerMode) {
+        mutableState.update { it.copy(mode = newMode) }
+        haptics.tick()
+    }
+
     fun toggleGyro(enabled: Boolean) {
         mutableState.update { it.copy(useGyro = enabled) }
         if (enabled) {
@@ -62,9 +75,18 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
         haptics.tick()
     }
 
+    fun setLeftStick(x: Float, y: Float) {
+        mutableState.update { it.copy(leftStickX = x.coerceIn(-1f, 1f), leftStickY = y.coerceIn(-1f, 1f)) }
+    }
+
+    fun setRightStick(x: Float, y: Float) {
+        mutableState.update { it.copy(rightStickX = x.coerceIn(-1f, 1f), rightStickY = y.coerceIn(-1f, 1f)) }
+    }
+
     fun setSteering(value: Float) {
         if (!mutableState.value.useGyro) {
-            mutableState.update { it.copy(steering = value.coerceIn(-1f, 1f)) }
+            val clamped = value.coerceIn(-1f, 1f)
+            mutableState.update { it.copy(leftStickX = clamped) }
         }
     }
 
@@ -101,16 +123,15 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
                 val buffer = ByteBuffer.allocate(256)
                 while (isActive) {
                     val s = mutableState.value
-                    val currentSteering = if (s.useGyro) {
-                        motionProducer.state.value.steering
-                    } else {
-                        s.steering
-                    }
+                    val lsX = if (s.useGyro) motionProducer.state.value.steering else s.leftStickX
 
                     val frame = WireControlFrame(
                         sequence = sequence.getAndIncrement(),
                         timestampNanos = System.nanoTime(),
-                        steering = currentSteering,
+                        leftStickX = lsX,
+                        leftStickY = s.leftStickY,
+                        rightStickX = s.rightStickX,
+                        rightStickY = s.rightStickY,
                         throttle = s.throttle,
                         brake = s.brake,
                         handbrake = s.handbrake,

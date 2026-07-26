@@ -9,12 +9,12 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * Fixed-width network framing for the real-time control lane.
- * Encodes 38-byte binary control frames with optional AES-256-GCM encryption.
+ * Encodes 46-byte binary control frames supporting dual analog sticks, triggers, and Xbox buttons.
  */
 object ControllerPacketCodec {
     const val MAGIC: Int = 0x524C4E4B // RLNK
     const val VERSION: Short = 1
-    const val CONTROL_PACKET_BYTES: Int = 38
+    const val CONTROL_PACKET_BYTES: Int = 46
     private val random = SecureRandom()
 
     fun encodeControl(frame: WireControlFrame, destination: ByteBuffer) {
@@ -25,7 +25,10 @@ object ControllerPacketCodec {
         destination.putShort(0)
         destination.putInt(frame.sequence)
         destination.putLong(frame.timestampNanos)
-        destination.putFloat(frame.steering)
+        destination.putFloat(frame.leftStickX)
+        destination.putFloat(frame.leftStickY)
+        destination.putFloat(frame.rightStickX)
+        destination.putFloat(frame.rightStickY)
         destination.putFloat(frame.throttle)
         destination.putFloat(frame.brake)
         destination.putFloat(frame.handbrake)
@@ -33,19 +36,31 @@ object ControllerPacketCodec {
     }
 
     fun decodeControl(source: ByteBuffer): WireControlFrame? {
-        if (source.remaining() < CONTROL_PACKET_BYTES) return null
+        if (source.remaining() < 36) return null
         source.order(ByteOrder.BIG_ENDIAN)
         if (source.int != MAGIC || source.short != VERSION) return null
         source.short // reserved
         val sequence = source.int
         val timestampNanos = source.long
-        val steering = source.float
-        val throttle = source.float
-        val brake = source.float
-        val handbrake = source.float
-        val buttons = source.short
-        if (!steering.isFinite() || !throttle.isFinite() || !brake.isFinite() || !handbrake.isFinite()) return null
-        return WireControlFrame(sequence, timestampNanos, steering, throttle, brake, handbrake, buttons)
+
+        if (source.remaining() >= 26) {
+            val lsX = source.float
+            val lsY = source.float
+            val rsX = source.float
+            val rsY = source.float
+            val throttle = source.float
+            val brake = source.float
+            val handbrake = source.float
+            val buttons = if (source.remaining() >= 2) source.short else 0
+            return WireControlFrame(sequence, timestampNanos, lsX, lsY, rsX, rsY, throttle, brake, handbrake, buttons)
+        } else {
+            val steering = source.float
+            val throttle = source.float
+            val brake = source.float
+            val handbrake = if (source.remaining() >= 4) source.float else 0f
+            val buttons = if (source.remaining() >= 2) source.short else 0
+            return WireControlFrame(sequence, timestampNanos, steering, 0f, 0f, 0f, throttle, brake, handbrake, buttons)
+        }
     }
 
     fun encodeEncryptedControl(frame: WireControlFrame, sessionKey: ByteArray, destination: ByteBuffer) {
@@ -66,11 +81,11 @@ object ControllerPacketCodec {
     }
 
     fun decodeEncryptedControl(source: ByteBuffer, sessionKey: ByteArray): WireControlFrame? {
-        if (source.remaining() < 12 + 4 + CONTROL_PACKET_BYTES) return null
+        if (source.remaining() < 12 + 4 + 36) return null
         source.order(ByteOrder.BIG_ENDIAN)
         val iv = ByteArray(12).also { source.get(it) }
         val cipherLength = source.int
-        if (cipherLength !in CONTROL_PACKET_BYTES..(CONTROL_PACKET_BYTES + 32) || source.remaining() < cipherLength) return null
+        if (cipherLength !in 36..128 || source.remaining() < cipherLength) return null
 
         val cipherText = ByteArray(cipherLength).also { source.get(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -85,9 +100,12 @@ object ControllerPacketCodec {
 data class WireControlFrame(
     val sequence: Int,
     val timestampNanos: Long,
-    val steering: Float,
-    val throttle: Float,
-    val brake: Float,
-    val handbrake: Float,
+    val leftStickX: Float = 0f,
+    val leftStickY: Float = 0f,
+    val rightStickX: Float = 0f,
+    val rightStickY: Float = 0f,
+    val throttle: Float = 0f,
+    val brake: Float = 0f,
+    val handbrake: Float = 0f,
     val buttons: Short = 0,
 )
