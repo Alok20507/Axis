@@ -79,6 +79,11 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
         if (prefsStore.hapticsEnabled) haptics.tick()
     }
 
+    fun recalibrateGyro() {
+        motionProducer.recalibrateZero()
+        if (prefsStore.hapticsEnabled) haptics.heavyClick()
+    }
+
     fun setLeftStick(x: Float, y: Float) {
         val s = prefsStore.stickSensitivity
         mutableState.update { it.copy(leftStickX = (x * s).coerceIn(-1f, 1f), leftStickY = (y * s).coerceIn(-1f, 1f)) }

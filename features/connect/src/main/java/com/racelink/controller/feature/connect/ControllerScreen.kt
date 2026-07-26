@@ -106,6 +106,7 @@ fun ControllerRoute(
         onHandbrakeToggle = viewModel::setHandbrake,
         onButtonFlag = viewModel::setButtonFlag,
         onToggleGyro = viewModel::toggleGyro,
+        onRecalibrateGyro = viewModel::recalibrateGyro,
         onBack = onBack
     )
 }
@@ -123,6 +124,7 @@ private fun ControllerScreen(
     onHandbrakeToggle: (Boolean) -> Unit,
     onButtonFlag: (Short, Boolean) -> Unit,
     onToggleGyro: (Boolean) -> Unit,
+    onRecalibrateGyro: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -204,7 +206,17 @@ private fun ControllerScreen(
                     Text("Profile: ${store.currentProfile}", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Zero Gyro Center Recalibration Button
+                    Button(
+                        onClick = onRecalibrateGyro,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E212B)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text("🎯 Zero Gyro", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00F0FF))
+                    }
+
                     // Edit Layout Toggle Button
                     Button(
                         onClick = { isEditMode = !isEditMode },

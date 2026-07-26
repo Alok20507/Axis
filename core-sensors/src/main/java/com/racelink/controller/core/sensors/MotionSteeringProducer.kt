@@ -15,40 +15,63 @@ data class MotionControlState(
     val timestampNanos: Long = 0L
 )
 
-/** High-precision sensor motion producer with landscape remapped coordinates for Sony DualSense tilt & aiming. */
+/**
+ * High-precision sensor motion producer for racing controller input.
+ * Uses Sensor.TYPE_GAME_ROTATION_VECTOR (Gyro + Accelerometer fusion without magnetometer drift).
+ */
 class MotionSteeringProducer(context: Context) : SensorEventListener, AutoCloseable {
     private val manager: SensorManager? = runCatching { context.getSystemService(SensorManager::class.java) }.getOrNull()
-    private val rotVector: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    private val gameRotVector: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+        ?: manager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val gyro: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-    private val accel: Sensor? = manager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
     private val mutableState = MutableStateFlow(MotionControlState())
     val state = mutableState.asStateFlow()
 
-    var sensitivity: Float = 2.0f // Default high sensitivity multiplier
-    var deadzone: Float = 0.02f
+    var sensitivity: Float = 2.0f
+    var deadzone: Float = 0.04f // ~2.3 degrees deadzone around calibrated center
+
+    // Low-Pass Filter (Alpha ~ 0.18 for ~8ms ultra-low latency anti-jitter)
+    private val lpfAlpha: Float = 0.18f
+    private var filteredRoll: Float = 0f
+    private var filteredPitch: Float = 0f
+
+    // Dynamic Recalibration Zero-Offset Point
+    private var zeroRollOffset: Float = 0f
+    private var zeroPitchOffset: Float = 0f
+    private var lastRawRoll: Float = 0f
+    private var lastRawPitch: Float = 0f
+
     private var isListening = false
 
     fun start() {
         val m = manager ?: return
         if (isListening) return
         runCatching {
-            if (rotVector != null) {
-                m.registerListener(this, rotVector, SensorManager.SENSOR_DELAY_GAME)
+            if (gameRotVector != null) {
+                m.registerListener(this, gameRotVector, SensorManager.SENSOR_DELAY_GAME)
             } else if (gyro != null) {
                 m.registerListener(this, gyro, SensorManager.SENSOR_DELAY_GAME)
-            } else if (accel != null) {
-                m.registerListener(this, accel, SensorManager.SENSOR_DELAY_GAME)
             }
             isListening = true
         }
+    }
+
+    /**
+     * Zero out current phone tilt posture as neutral center (0.0).
+     */
+    fun recalibrateZero() {
+        zeroRollOffset = lastRawRoll
+        zeroPitchOffset = lastRawPitch
+        filteredRoll = 0f
+        filteredPitch = 0f
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
         runCatching {
             when (event.sensor.type) {
-                Sensor.TYPE_ROTATION_VECTOR -> {
+                Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> {
                     val rotationMatrix = FloatArray(9)
                     SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 
@@ -64,34 +87,38 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
                     val orientation = FloatArray(3)
                     SensorManager.getOrientation(remappedMatrix, orientation)
 
-                    // orientation[2] = Roll angle in landscape (Steering / Yaw)
-                    // orientation[1] = Pitch angle in landscape (Camera Pitch)
-                    val rawRoll = (-orientation[2] * sensitivity * 0.8f).coerceIn(-1f, 1f)
-                    val rawPitch = (-orientation[1] * sensitivity * 0.8f).coerceIn(-1f, 1f)
+                    val currentRawRoll = -orientation[2]
+                    val currentRawPitch = -orientation[1]
 
-                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
-                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+                    lastRawRoll = currentRawRoll
+                    lastRawPitch = currentRawPitch
 
-                    mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
-                }
-                Sensor.TYPE_ACCELEROMETER -> {
-                    // Fallback landscape tilt calculation: ax is vertical tilt in landscape
-                    val ax = event.values[0]
-                    val ay = event.values[1]
-                    val rawRoll = (ay / 7f * sensitivity).coerceIn(-1f, 1f)
-                    val rawPitch = (-ax / 7f * sensitivity).coerceIn(-1f, 1f)
+                    // Apply zero-calibration offset
+                    val uncalibratedRoll = (currentRawRoll - zeroRollOffset) * sensitivity * 0.85f
+                    val uncalibratedPitch = (currentRawPitch - zeroPitchOffset) * sensitivity * 0.85f
 
-                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
-                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+                    val clampedRoll = uncalibratedRoll.coerceIn(-1f, 1f)
+                    val clampedPitch = uncalibratedPitch.coerceIn(-1f, 1f)
 
-                    mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
+                    // Low-pass filter (Exponential Moving Average for zero-jitter at 120Hz)
+                    filteredRoll += lpfAlpha * (clampedRoll - filteredRoll)
+                    filteredPitch += lpfAlpha * (clampedPitch - filteredPitch)
+
+                    // Apply deadzone (~2-3 degrees) around neutral center
+                    val finalRoll = if (abs(filteredRoll) < deadzone) 0f else filteredRoll
+                    val finalPitch = if (abs(filteredPitch) < deadzone) 0f else filteredPitch
+
+                    mutableState.value = MotionControlState(roll = finalRoll, pitch = finalPitch, timestampNanos = event.timestamp)
                 }
                 Sensor.TYPE_GYROSCOPE -> {
                     val rawRoll = (event.values[1] * sensitivity * 0.4f).coerceIn(-1f, 1f)
                     val rawPitch = (event.values[0] * sensitivity * 0.4f).coerceIn(-1f, 1f)
 
-                    val roll = if (abs(rawRoll) < deadzone) 0f else rawRoll
-                    val pitch = if (abs(rawPitch) < deadzone) 0f else rawPitch
+                    filteredRoll += lpfAlpha * (rawRoll - filteredRoll)
+                    filteredPitch += lpfAlpha * (rawPitch - filteredPitch)
+
+                    val roll = if (abs(filteredRoll) < deadzone) 0f else filteredRoll
+                    val pitch = if (abs(filteredPitch) < deadzone) 0f else filteredPitch
 
                     mutableState.value = MotionControlState(roll = roll, pitch = pitch, timestampNanos = event.timestamp)
                 }
@@ -107,6 +134,8 @@ class MotionSteeringProducer(context: Context) : SensorEventListener, AutoClosea
         runCatching {
             m.unregisterListener(this)
             isListening = false
+            filteredRoll = 0f
+            filteredPitch = 0f
         }
     }
 }
