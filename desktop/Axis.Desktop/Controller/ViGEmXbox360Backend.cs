@@ -18,32 +18,50 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_isConnected) return ValueTask.CompletedTask;
-        _client = new ViGEmClient();
-        _controller = _client.CreateXbox360Controller();
-        _controller.Connect();
-        _isConnected = true;
+
+        try
+        {
+            _client = new ViGEmClient();
+            _controller = _client.CreateXbox360Controller();
+            _controller.Connect();
+            _isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            _isConnected = false;
+            System.Diagnostics.Debug.WriteLine($"ViGEmBus connection error: {ex.Message}");
+        }
+
         return ValueTask.CompletedTask;
     }
 
     public ValueTask SubmitAsync(XInputReport report, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var controller = _controller ?? throw new InvalidOperationException("Virtual controller is not connected.");
+        if (!_isConnected || _controller == null) return ValueTask.CompletedTask;
 
-        // Dual Thumbsticks
-        controller.SetAxisValue(Xbox360Axis.LeftThumbX, report.LeftThumbX);
-        controller.SetAxisValue(Xbox360Axis.LeftThumbY, report.LeftThumbY);
-        controller.SetAxisValue(Xbox360Axis.RightThumbX, report.RightThumbX);
-        controller.SetAxisValue(Xbox360Axis.RightThumbY, report.RightThumbY);
+        try
+        {
+            // Dual Thumbsticks
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, report.LeftThumbX);
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, report.LeftThumbY);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbX, report.RightThumbX);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbY, report.RightThumbY);
 
-        // Analog Triggers
-        controller.SetSliderValue(Xbox360Slider.LeftTrigger, report.LeftTrigger);
-        controller.SetSliderValue(Xbox360Slider.RightTrigger, report.RightTrigger);
+            // Analog Triggers
+            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, report.LeftTrigger);
+            _controller.SetSliderValue(Xbox360Slider.RightTrigger, report.RightTrigger);
 
-        // Digital Buttons & D-Pad
-        SetButtons(controller, report.Buttons);
+            // Digital Buttons & D-Pad
+            SetButtons(_controller, report.Buttons);
 
-        controller.SubmitReport();
+            _controller.SubmitReport();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ViGEmBus submit error: {ex.Message}");
+        }
+
         return ValueTask.CompletedTask;
     }
 
@@ -51,11 +69,11 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
     {
         if (_isConnected)
         {
-            _controller?.Disconnect();
+            try { _controller?.Disconnect(); } catch { }
             _isConnected = false;
         }
         _controller = null;
-        _client?.Dispose();
+        try { _client?.Dispose(); } catch { }
         _client = null;
         return ValueTask.CompletedTask;
     }

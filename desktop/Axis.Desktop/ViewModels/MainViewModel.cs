@@ -33,7 +33,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
             : new UnavailableVirtualGamepadBackend("Virtual controller requires Windows with ViGEmBus driver.");
 
         var runtime = new ControllerRuntime(backend);
-        var controlReceiver = new ControlReceiver(runtime, status => ConnectionStatus = status);
+
+        // Instantly connect virtual Xbox 360 controller on Windows startup
+        _ = Task.Run(async () =>
+        {
+            try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
+            catch { }
+        });
+
+        var controlReceiver = new ControlReceiver(runtime, status =>
+        {
+            ConnectionStatus = status;
+            _ = Task.Run(async () =>
+            {
+                try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
+                catch { }
+            });
+        });
         _ = Task.Run(controlReceiver.RunAsync);
 
         var pairingServer = new PairingServer(
@@ -43,6 +59,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 controlReceiver.SessionKey = key;
                 SessionStore.SaveSessionKey(key);
                 ConnectionStatus = "Encrypted AES-256-GCM Session Active (120 Hz)";
+
+                _ = Task.Run(async () =>
+                {
+                    try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
+                    catch { }
+                });
             }
         );
         _ = Task.Run(pairingServer.RunAsync);
