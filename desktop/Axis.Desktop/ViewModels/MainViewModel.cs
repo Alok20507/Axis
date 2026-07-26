@@ -28,41 +28,15 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var responder = new DiscoveryResponder(message => LastDiscovery = message);
         _ = Task.Run(responder.RunAsync);
 
-        var vigemBackend = new ViGEmXbox360Backend();
-        IVirtualGamepadBackend backend = OperatingSystem.IsWindows()
-            ? vigemBackend
-            : new UnavailableVirtualGamepadBackend("Virtual controller requires Windows with ViGEmBus driver.");
+        var controllerManager = new MultiControllerManager();
 
-        var runtime = new ControllerRuntime(backend);
-
-        // Instantly connect virtual Xbox 360 controller on Windows startup
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false);
-                if (vigemBackend.IsConnected)
-                {
-                    ConnectionStatus = "🟢 Virtual Xbox 360 Controller Active (Steam / AAA Games Ready)";
-                }
-                else if (vigemBackend.LastError != null)
-                {
-                    ConnectionStatus = $"🔴 ViGEmBus Driver Missing: {vigemBackend.LastError}. Install ViGEmBus for Xbox 360 Gamepad support.";
-                }
-            }
-            catch { }
-        });
-
-        var controlReceiver = new ControlReceiver(runtime, status =>
+        var controlReceiver = new ControlReceiver(controllerManager, status =>
         {
             ConnectionStatus = status;
-            _ = Task.Run(async () =>
-            {
-                try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
-                catch { }
-            });
         });
         _ = Task.Run(controlReceiver.RunAsync);
+
+        ConnectionStatus = "🟢 Dual / Multi-Controller Backend Ready (Players 1-4 Supported)";
 
         var pairingServer = new PairingServer(
             onCode: code => PairingStatus = $"PIN Code: {code}",
@@ -70,13 +44,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             {
                 controlReceiver.SessionKey = key;
                 SessionStore.SaveSessionKey(key);
-                ConnectionStatus = "🟢 120 Hz Active Session (Xbox 360 Connected)";
-
-                _ = Task.Run(async () =>
-                {
-                    try { await runtime.ApplyAsync(NormalizedControllerState.Neutral, CancellationToken.None).ConfigureAwait(false); }
-                    catch { }
-                });
+                ConnectionStatus = $"🟢 Active Multi-Device Session ({controllerManager.ActiveControllerCount} Device(s) Connected)";
             }
         );
         _ = Task.Run(pairingServer.RunAsync);

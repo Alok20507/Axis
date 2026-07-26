@@ -8,13 +8,12 @@ using Axis.Desktop.Storage;
 namespace Axis.Desktop.Networking;
 
 /// Receives fixed-width Android control frames for low-latency 120Hz Virtual Gamepad & Mouse control.
-public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? onStatusChanged = null) : IAsyncDisposable
+public sealed class ControlReceiver(MultiControllerManager controllerManager, Action<string>? onStatusChanged = null) : IAsyncDisposable
 {
     public const int Port = 45102;
     private readonly CancellationTokenSource _stop = new();
     private UdpClient? _socket;
     public byte[]? SessionKey { get; set; }
-    private bool _hasReportedConnection;
 
     public async Task RunAsync()
     {
@@ -27,14 +26,11 @@ public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? o
 
             if (!TryDecode(datagram.Buffer, out var state)) continue;
 
-            if (!_hasReportedConnection)
-            {
-                _hasReportedConnection = true;
-                onStatusChanged?.Invoke("Low-Latency LAN Session Active (120 Hz)");
-            }
+            var (playerIndex, runtime) = controllerManager.GetRuntimeForEndpoint(datagram.RemoteEndPoint);
+            onStatusChanged?.Invoke($"🟢 Active: {controllerManager.ActiveControllerCount} Connected Device(s) (Player {playerIndex} Active)");
 
-            // Move Windows Mouse when in Mouse Mode or right stick dragging
-            if (MathF.Abs(state.RightStickX) > 0.08f || MathF.Abs(state.RightStickY) > 0.08f)
+            // Move Windows Mouse when Player 1 right stick dragging
+            if (playerIndex == 1 && (MathF.Abs(state.RightStickX) > 0.08f || MathF.Abs(state.RightStickY) > 0.08f))
             {
                 WindowsMouse.MoveDelta(state.RightStickX, state.RightStickY);
             }
@@ -127,7 +123,7 @@ public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? o
     {
         _stop.Cancel();
         _socket?.Dispose();
-        await runtime.DisconnectAsync(CancellationToken.None);
+        await controllerManager.DisposeAsync();
         _stop.Dispose();
     }
 }
