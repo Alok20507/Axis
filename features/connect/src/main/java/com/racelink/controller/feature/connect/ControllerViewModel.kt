@@ -7,6 +7,7 @@ import com.racelink.controller.core.haptics.HapticsManager
 import com.racelink.controller.core.network.ControllerPacketCodec
 import com.racelink.controller.core.network.WireControlFrame
 import com.racelink.controller.core.sensors.MotionSteeringProducer
+import com.racelink.controller.core.storage.ControllerPreferencesStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,6 +45,7 @@ data class ControllerUiState(
 class ControllerViewModel(application: Application) : AndroidViewModel(application) {
     private val haptics = HapticsManager(application)
     private val motionProducer = MotionSteeringProducer(application)
+    private val prefsStore = ControllerPreferencesStore(application)
 
     private val mutableState = MutableStateFlow(ControllerUiState())
     val state = mutableState.asStateFlow()
@@ -62,25 +64,29 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setMode(newMode: ControllerMode) {
         mutableState.update { it.copy(mode = newMode) }
-        haptics.tick()
+        if (prefsStore.hapticsEnabled) haptics.tick()
     }
 
     fun toggleGyro(enabled: Boolean) {
         mutableState.update { it.copy(useGyro = enabled) }
         if (enabled) {
+            motionProducer.sensitivity = prefsStore.gyroSensitivity
+            motionProducer.deadzone = prefsStore.deadzone
             motionProducer.start()
         } else {
             motionProducer.close()
         }
-        haptics.tick()
+        if (prefsStore.hapticsEnabled) haptics.tick()
     }
 
     fun setLeftStick(x: Float, y: Float) {
-        mutableState.update { it.copy(leftStickX = x.coerceIn(-1f, 1f), leftStickY = y.coerceIn(-1f, 1f)) }
+        val s = prefsStore.stickSensitivity
+        mutableState.update { it.copy(leftStickX = (x * s).coerceIn(-1f, 1f), leftStickY = (y * s).coerceIn(-1f, 1f)) }
     }
 
     fun setRightStick(x: Float, y: Float) {
-        mutableState.update { it.copy(rightStickX = x.coerceIn(-1f, 1f), rightStickY = y.coerceIn(-1f, 1f)) }
+        val s = prefsStore.stickSensitivity
+        mutableState.update { it.copy(rightStickX = (x * s).coerceIn(-1f, 1f), rightStickY = (y * s).coerceIn(-1f, 1f)) }
     }
 
     fun setSteering(value: Float) {
@@ -100,7 +106,7 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setHandbrake(active: Boolean) {
         mutableState.update { it.copy(handbrake = if (active) 1f else 0f) }
-        if (active) haptics.heavyClick()
+        if (active && prefsStore.hapticsEnabled) haptics.heavyClick()
     }
 
     fun setButtonFlag(flag: Short, pressed: Boolean) {
@@ -112,7 +118,7 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
             }
             current.copy(buttonFlags = newFlags)
         }
-        if (pressed) haptics.tick()
+        if (pressed && prefsStore.hapticsEnabled) haptics.tick()
     }
 
     private fun startControlLoop() {

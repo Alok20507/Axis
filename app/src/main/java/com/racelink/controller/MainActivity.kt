@@ -1,22 +1,13 @@
 package com.racelink.controller
 
 import android.os.Bundle
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -30,11 +21,12 @@ import com.racelink.controller.feature.connect.ControllerRoute
 import com.racelink.controller.feature.connect.ControllerViewModel
 import com.racelink.controller.feature.home.HomeRoute
 import com.racelink.controller.feature.home.HomeViewModel
+import com.racelink.controller.feature.home.ProfilesScreen
+import com.racelink.controller.feature.home.SettingsScreen
 import dagger.hilt.android.AndroidEntryPoint
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import android.util.Base64
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -93,19 +85,8 @@ private fun RaceLinkApp() {
                 )
             }
 
-            composable("profiles") { FoundationScreen("Profiles", "Driving profiles and force-feedback presets stored locally.") }
-            composable("settings") { FoundationScreen("Settings", "Controller input sensitivity, deadzones, and sensor calibration.") }
+            composable("profiles") { ProfilesScreen(onBack = { navController.popBackStack() }) }
+            composable("settings") { SettingsScreen(onBack = { navController.popBackStack() }) }
         }
-    }
-}
-
-@Composable
-private fun FoundationScreen(title: String, description: String) {
-    Column(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(title, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
-        Text(description, color = MaterialTheme.colorScheme.secondary, fontSize = 16.sp)
     }
 }
