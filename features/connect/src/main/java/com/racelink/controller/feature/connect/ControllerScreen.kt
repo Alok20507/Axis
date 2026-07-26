@@ -540,6 +540,8 @@ private fun DraggableControlContainer(
         mutableFloatStateOf(transform.scale)
     }
 
+    val borderShape = if (elementKey == "wheel" || elementKey.contains("stick")) CircleShape else RoundedCornerShape(12.dp)
+
     Box(
         modifier = modifier
             .offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) }
@@ -550,8 +552,8 @@ private fun DraggableControlContainer(
             .then(
                 if (isEditMode) {
                     Modifier
-                        .border(1.5.dp, Color(0xFFD6FF61), RoundedCornerShape(12.dp))
-                        .background(Color(0xFFD6FF61).copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        .border(1.5.dp, Color(0xFFD6FF61), borderShape)
+                        .background(Color(0xFFD6FF61).copy(alpha = 0.12f), borderShape)
                         .pointerInput(activeProfile, activeMode, elementKey) {
                             detectDragGestures { change, dragAmount ->
                                 change.consume()
@@ -571,7 +573,7 @@ private fun DraggableControlContainer(
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(y = (-12).dp, x = 12.dp)
+                    .offset(y = (-10).dp, x = 10.dp)
                     .background(Color.Black, CircleShape)
                     .border(1.dp, Color(0xFFD6FF61), CircleShape)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
