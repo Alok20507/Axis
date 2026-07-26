@@ -1,0 +1,34 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Axis"
+include(
+    ":app",
+    ":core-ui",
+    ":core-network",
+    ":core-bluetooth",
+    ":core-sensors",
+    ":core-haptics",
+    ":core-storage",
+    ":domain",
+    ":data",
+    ":features:home",
+    ":features:connect",
+    ":features:calibration",
+    ":features:dashboard",
+    ":features:settings",
+    ":features:profiles",
+)

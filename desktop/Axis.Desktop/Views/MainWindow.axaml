@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Axis.Desktop.Views.MainWindow" Width="620" Height="500" Title="Axis Desktop">
+  <Border Background="#090A0C" Padding="32"><StackPanel Spacing="16">
+    <TextBlock Text="AXIS" Foreground="#D6FF61" FontWeight="Bold" FontSize="14" LetterSpacing="3"/>
+    <TextBlock Text="Desktop companion" Foreground="White" FontSize="30" FontWeight="SemiBold"/>
+    <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="8">
+      <TextBlock Text="{Binding DiscoveryStatus}" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding LanAddress}" Foreground="#B7C7D6" FontSize="16"/>
+      <TextBlock Text="UDP discovery port 45100" Foreground="#B7C7D6"/>
+    </StackPanel></Border>
+    <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="6">
+      <TextBlock Text="Diagnostics" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding LastDiscovery}" Foreground="#B7C7D6"/>
+      <TextBlock Text="Virtual controller: no signed backend selected" Foreground="#FFB4AB"/>
+    </StackPanel></Border>
+    <TextBlock Text="Keep this window open and connect Axis on the same Wi-Fi network." Foreground="#B7C7D6" TextWrapping="Wrap"/>
+  </StackPanel></Border>
+</Window>
