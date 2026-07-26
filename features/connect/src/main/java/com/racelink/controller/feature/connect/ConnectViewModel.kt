@@ -7,6 +7,7 @@ import com.racelink.controller.core.network.DiscoveredDesktop
 import com.racelink.controller.core.network.WifiDiscoveryManager
 import com.racelink.controller.core.network.pairing.PairingClient
 import com.racelink.controller.core.storage.PairedDesktopStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,7 +57,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
             mutableState.update { it.copy(isDiscovering = true, errorMessage = null, desktops = emptyList()) }
             runCatching { discoveryManager.discover() }
                 .onSuccess { results -> mutableState.update { it.copy(isDiscovering = false, desktops = results) } }
-                .onFailure { error -> mutableState.update { it.copy(isDiscovering = false, errorMessage = error.message ?: "Discovery could not start.") } }
+                .onFailure { error ->
+                    if (error !is CancellationException) {
+                        mutableState.update { it.copy(isDiscovering = false, errorMessage = error.message ?: "Discovery failed.") }
+                    }
+                }
         }
     }
 
@@ -64,7 +69,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val saved = pairedStore.savedSession.firstOrNull()
             if (saved != null && (saved.hostAddress == desktop.address || saved.sessionKey.size == 32)) {
-                // Auto-reconnect using saved paired session key (no PIN prompt required!)
+                // Auto-connect directly using saved pairing session (instant 0.1s connection!)
                 onConnectDirectly(desktop, saved.sessionKey)
             } else {
                 // Prompt for initial 6-digit PIN pairing
@@ -100,7 +105,9 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                     onSuccess(desktop, result.sessionKey)
                 }
                 .onFailure { error ->
-                    mutableState.update { it.copy(isPairing = false, errorMessage = error.message ?: "Pairing failed. Check PIN and try again.") }
+                    if (error !is CancellationException) {
+                        mutableState.update { it.copy(isPairing = false, errorMessage = error.message ?: "Pairing failed. Check PIN and try again.") }
+                    }
                 }
         }
     }
@@ -122,7 +129,11 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                         else it.copy(isDiscovering = false, desktops = listOf(result))
                     }
                 }
-                .onFailure { error -> mutableState.update { it.copy(isDiscovering = false, errorMessage = error.message ?: "The address is invalid or unreachable.") } }
+                .onFailure { error ->
+                    if (error !is CancellationException) {
+                        mutableState.update { it.copy(isDiscovering = false, errorMessage = error.message ?: "The address is invalid or unreachable.") }
+                    }
+                }
         }
     }
 }

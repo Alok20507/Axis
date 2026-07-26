@@ -7,7 +7,7 @@ using Axis.Desktop.Storage;
 
 namespace Axis.Desktop.Networking;
 
-/// Receives fixed-width Android control frames (with optional AES-GCM encryption).
+/// Receives fixed-width Android control frames for low-latency 120Hz Virtual Gamepad & Mouse control.
 public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? onStatusChanged = null) : IAsyncDisposable
 {
     public const int Port = 45102;
@@ -25,12 +25,12 @@ public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? o
             try { datagram = await _socket.ReceiveAsync(_stop.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) { break; }
 
-            if (!TryDecode(datagram.Buffer, ref stateKey, out var state)) continue;
+            if (!TryDecode(datagram.Buffer, out var state)) continue;
 
             if (!_hasReportedConnection)
             {
                 _hasReportedConnection = true;
-                onStatusChanged?.Invoke("Encrypted AES-256-GCM Session Active (120 Hz)");
+                onStatusChanged?.Invoke("Low-Latency LAN Session Active (120 Hz)");
             }
 
             // Move Windows Mouse when in Mouse Mode or right stick dragging
@@ -44,21 +44,15 @@ public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? o
         }
     }
 
-    private byte[]? stateKey;
-
-    private bool TryDecode(ReadOnlySpan<byte> buffer, ref byte[]? activeKey, out NormalizedControllerState state)
+    private static bool TryDecode(ReadOnlySpan<byte> buffer, out NormalizedControllerState state)
     {
         state = NormalizedControllerState.Neutral;
         ReadOnlySpan<byte> frame = buffer;
 
-        // Try decrypting with current SessionKey or saved SessionStore keys
+        // AES-GCM Encrypted packet fallback
         if (buffer.Length >= 12 + 4 + 36)
         {
-            var candidates = new List<byte[]>();
-            if (SessionKey != null) candidates.Add(SessionKey);
-            if (activeKey != null && !candidates.Contains(activeKey)) candidates.Add(activeKey);
-            candidates.AddRange(SessionStore.GetSessionKeys().Where(k => !candidates.Contains(k)));
-
+            var candidates = SessionStore.GetSessionKeys();
             foreach (var candidate in candidates)
             {
                 try
@@ -72,16 +66,10 @@ public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? o
                         using var aes = new AesGcm(candidate, 16);
                         aes.Decrypt(iv, cipherTextWithTag[..^16], cipherTextWithTag[^16..], plain);
                         frame = plain;
-                        SessionKey = candidate;
-                        activeKey = candidate;
-                        SessionStore.SaveSessionKey(candidate);
                         break;
                     }
                 }
-                catch (CryptographicException)
-                {
-                    // Try next candidate key
-                }
+                catch (CryptographicException) { }
             }
         }
 

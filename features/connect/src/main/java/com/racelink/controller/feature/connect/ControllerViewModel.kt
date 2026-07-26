@@ -139,11 +139,7 @@ class ControllerViewModel(application: Application) : AndroidViewModel(applicati
                     )
 
                     buffer.clear()
-                    if (sessionKey.any { it != 0.toByte() }) {
-                        ControllerPacketCodec.encodeEncryptedControl(frame, sessionKey, buffer)
-                    } else {
-                        ControllerPacketCodec.encodeControl(frame, buffer)
-                    }
+                    ControllerPacketCodec.encodeControl(frame, buffer)
 
                     val packetData = buffer.array()
                     val packetLen = buffer.position()
