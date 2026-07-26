@@ -9,12 +9,12 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * Fixed-width network framing for the real-time control lane.
- * Encodes 46-byte binary control frames supporting dual analog sticks, triggers, and Xbox buttons.
+ * Encodes 48-byte binary control frames supporting dual analog sticks, triggers, and Xbox buttons.
  */
 object ControllerPacketCodec {
     const val MAGIC: Int = 0x524C4E4B // RLNK
     const val VERSION: Short = 1
-    const val CONTROL_PACKET_BYTES: Int = 46
+    const val CONTROL_PACKET_BYTES: Int = 48
     private val random = SecureRandom()
 
     fun encodeControl(frame: WireControlFrame, destination: ByteBuffer) {
@@ -43,7 +43,7 @@ object ControllerPacketCodec {
         val sequence = source.int
         val timestampNanos = source.long
 
-        if (source.remaining() >= 26) {
+        if (source.remaining() >= 28) {
             val lsX = source.float
             val lsY = source.float
             val rsX = source.float

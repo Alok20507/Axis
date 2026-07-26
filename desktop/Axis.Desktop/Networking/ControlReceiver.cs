@@ -61,7 +61,18 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
         float lsX = 0f, lsY = 0f, rsX = 0f, rsY = 0f, throttle = 0f, brake = 0f, handbrake = 0f;
         ushort buttonFlags = 0;
 
-        if (frame.Length >= 46)
+        if (frame.Length >= 48)
+        {
+            lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
+            lsY = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
+            rsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
+            rsY = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
+            throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[36..]));
+            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[40..]));
+            handbrake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[44..]));
+            buttonFlags = BinaryPrimitives.ReadUInt16BigEndian(frame[48..]);
+        }
+        else if (frame.Length >= 46)
         {
             lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
             lsY = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
@@ -75,7 +86,7 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
         {
             lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
             throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
-            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
+            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[36..]));
             handbrake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
             buttonFlags = frame.Length >= 38 ? BinaryPrimitives.ReadUInt16BigEndian(frame[36..]) : (ushort)0;
         }
