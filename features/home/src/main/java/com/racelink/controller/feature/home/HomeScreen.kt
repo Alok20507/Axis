@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,22 +37,31 @@ fun HomeRoute(
     onConnect: () -> Unit,
     onProfiles: () -> Unit,
     onSettings: () -> Unit,
+    onCustomizeLayout: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    HomeScreen(state, onConnect, onSettings)
+    HomeScreen(
+        state = state,
+        onConnect = onConnect,
+        onProfiles = onProfiles,
+        onSettings = onSettings,
+        onCustomizeLayout = onCustomizeLayout
+    )
 }
 
 @Composable
 private fun HomeScreen(
     state: HomeUiState,
     onConnect: () -> Unit,
+    onProfiles: () -> Unit,
     onSettings: () -> Unit,
+    onCustomizeLayout: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Image(
                 painter = painterResource(id = R.drawable.ic_axis_logo),
@@ -63,16 +73,43 @@ private fun HomeScreen(
         Text("Ready to play.", fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold)
 
         Text("A precision controller for your PC.", color = MaterialTheme.colorScheme.secondary, fontSize = 16.sp)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         StatusCard(state)
-        
+
+        // Primary Action: Connect to PC
         Button(
             onClick = onConnect,
-            modifier = Modifier.fillMaxWidth().height(58.dp),
-            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
         ) {
-            Text("Connect to PC", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("🎮 Connect to PC", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        // Secondary Action: Test & Customize Layout (Offline Editor)
+        OutlinedButton(
+            onClick = onCustomizeLayout,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Text("✏️ Test & Customize Button Layout", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        // Tertiary Action: Saved Profiles
+        Surface(
+            onClick = onProfiles,
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("📁 Custom Layout Profiles", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("→", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+            }
         }
 
         Spacer(Modifier.weight(1f))
@@ -84,12 +121,12 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(18.dp),
+                modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("⚙️ Controller preferences", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text("→", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                Text("⚙️ Controller Preferences", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text("→", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -97,14 +134,14 @@ private fun HomeScreen(
 
 @Composable
 private fun StatusCard(state: HomeUiState) {
-    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(state.connectionLabel, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
-            Text(state.connectionDetail, color = MaterialTheme.colorScheme.secondary)
+    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(state.connectionLabel, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(state.connectionDetail, color = MaterialTheme.colorScheme.secondary, fontSize = 14.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Battery ${state.batteryPercent}%", color = MaterialTheme.colorScheme.secondary)
+                Text("Battery ${state.batteryPercent}%", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
                 Spacer(Modifier.width(20.dp))
-                Text(state.latencyMs?.let { "$it ms" } ?: "Latency —", color = MaterialTheme.colorScheme.secondary)
+                Text(state.latencyMs?.let { "$it ms" } ?: "Latency —", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
             }
         }
     }

@@ -48,6 +48,7 @@ private fun RaceLinkApp() {
                     onConnect = { navController.navigate("connect") },
                     onProfiles = { navController.navigate("profiles") },
                     onSettings = { navController.navigate("settings") },
+                    onCustomizeLayout = { navController.navigate("controller/preview/preview") }
                 )
             }
 

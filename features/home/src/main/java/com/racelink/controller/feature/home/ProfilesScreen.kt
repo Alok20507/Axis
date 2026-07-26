@@ -11,11 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +38,9 @@ fun ProfilesScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { ControllerPreferencesStore(context) }
     var selectedProfile by remember { mutableStateOf(store.currentProfile) }
+    var profileList by remember { mutableStateOf(store.customProfileNames.toList()) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newProfileName by remember { mutableStateOf("") }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -45,7 +52,7 @@ fun ProfilesScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Spacer(Modifier.height(10.dp))
             
@@ -65,45 +72,77 @@ fun ProfilesScreen(onBack: () -> Unit) {
             }
 
             Text(
-                "Select or switch active controller mapping preset for your PC games.",
+                "Create, customize, and save custom button placement profiles for your PC games.",
                 color = MaterialTheme.colorScheme.secondary,
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
 
-            // Profile Cards
-            ProfileOptionCard(
-                title = "🎮 Universal Xbox & PlayStation Gamepad",
-                subtitle = "Ideal for God of War, GTA V, Solo Leveling, Cyberpunk 2077",
-                details = "Dual analog thumbsticks, △ ◯ ✕ ▢ action buttons, D-pad, adaptive triggers (L2/R2) & shoulder bumpers (L1/R1).",
-                isSelected = selectedProfile == "Universal Gamepad",
-                onSelect = {
-                    selectedProfile = "Universal Gamepad"
-                    store.currentProfile = "Universal Gamepad"
-                }
-            )
+            Button(
+                onClick = { showCreateDialog = true },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("➕ Create New Profile", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
 
-            ProfileOptionCard(
-                title = "🏎️ Road Racing Wheel & Motion Gyro",
-                subtitle = "Ideal for Forza Horizon, Need for Speed, Assetto Corsa",
-                details = "360° continuous steering wheel, Motion Gyroscope tilt steering, analog brake & accelerator pedals, paddle shifters.",
-                isSelected = selectedProfile == "Road Racing",
-                onSelect = {
-                    selectedProfile = "Road Racing"
-                    store.currentProfile = "Road Racing"
-                }
-            )
-
-            ProfileOptionCard(
-                title = "🖱️ PC Remote Touchpad & Mouse",
-                subtitle = "Ideal for Windows Desktop control, Strategy, & Web Navigation",
-                details = "Multi-touch trackpad, sub-pixel cursor movement, Left & Right mouse click buttons, volume control & launcher shortcuts.",
-                isSelected = selectedProfile == "Touchpad Mouse",
-                onSelect = {
-                    selectedProfile = "Touchpad Mouse"
-                    store.currentProfile = "Touchpad Mouse"
-                }
-            )
+            profileList.forEach { profileName ->
+                ProfileOptionCard(
+                    title = profileName,
+                    subtitle = if (profileName == selectedProfile) "Active Layout Profile" else "Saved Custom Profile",
+                    details = "Stores customized button sizes, coordinates, and analog placement.",
+                    isSelected = selectedProfile == profileName,
+                    onSelect = {
+                        selectedProfile = profileName
+                        store.currentProfile = profileName
+                    },
+                    onResetLayout = {
+                        store.resetLayout(profileName, "GAMEPAD")
+                        store.resetLayout(profileName, "RACING")
+                    }
+                )
+            }
         }
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("Create New Profile") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter a custom profile name (e.g. God of War Layout, GTA V Driving, Forza Wheel).")
+                    OutlinedTextField(
+                        value = newProfileName,
+                        onValueChange = { newProfileName = it },
+                        singleLine = true,
+                        label = { Text("Profile Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newProfileName.isNotBlank()) {
+                            store.addCustomProfile(newProfileName.trim())
+                            selectedProfile = newProfileName.trim()
+                            profileList = store.customProfileNames.toList()
+                            newProfileName = ""
+                            showCreateDialog = false
+                        }
+                    },
+                    enabled = newProfileName.isNotBlank()
+                ) {
+                    Text("Create Profile")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -113,7 +152,8 @@ private fun ProfileOptionCard(
     subtitle: String,
     details: String,
     isSelected: Boolean,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    onResetLayout: () -> Unit
 ) {
     Surface(
         onClick = onSelect,
@@ -151,6 +191,16 @@ private fun ProfileOptionCard(
                 fontSize = 13.sp,
                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondary
             )
+            
+            if (isSelected) {
+                OutlinedButton(
+                    onClick = onResetLayout,
+                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Reset Layout to Default", fontSize = 12.sp)
+                }
+            }
         }
     }
 }

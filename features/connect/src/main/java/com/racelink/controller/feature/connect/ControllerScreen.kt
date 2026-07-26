@@ -8,6 +8,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -30,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -59,6 +62,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.racelink.controller.core.storage.ControlElementTransform
+import com.racelink.controller.core.storage.ControllerPreferencesStore
 import com.racelink.controller.core.ui.R
 import kotlin.math.atan2
 import kotlin.math.roundToInt
@@ -84,11 +89,14 @@ fun ControllerRoute(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(address) {
-        viewModel.startSession(address, sessionKey)
+        if (address != "preview") {
+            viewModel.startSession(address, sessionKey)
+        }
     }
 
     ControllerScreen(
         state = state,
+        isPreviewMode = address == "preview",
         onModeChange = viewModel::setMode,
         onLeftStickChange = viewModel::setLeftStick,
         onRightStickChange = viewModel::setRightStick,
@@ -105,6 +113,7 @@ fun ControllerRoute(
 @Composable
 private fun ControllerScreen(
     state: ControllerUiState,
+    isPreviewMode: Boolean,
     onModeChange: (ControllerMode) -> Unit,
     onLeftStickChange: (Float, Float) -> Unit,
     onRightStickChange: (Float, Float) -> Unit,
@@ -117,7 +126,9 @@ private fun ControllerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    // Read real battery percentage from Android BatteryManager
+    val store = remember { ControllerPreferencesStore(context) }
+    var isEditMode by remember { mutableStateOf(isPreviewMode) }
+
     val batteryPct = remember(context) {
         runCatching {
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -189,11 +200,24 @@ private fun ControllerScreen(
                             Text("🏎️ Wheel", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    Text("Profile: ${store.currentProfile}", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("⚡ $batteryPct%", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Edit Layout Toggle Button
+                    Button(
+                        onClick = { isEditMode = !isEditMode },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEditMode) Color(0xFFFFB703) else Color(0xFF1E212B),
+                            contentColor = if (isEditMode) Color.Black else Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(if (isEditMode) "💾 Save Layout" else "✏️ Edit Layout", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
                     Button(
                         onClick = { onToggleGyro(!state.useGyro) },
                         colors = ButtonDefaults.buttonColors(
@@ -213,6 +237,8 @@ private fun ControllerScreen(
             if (state.mode == ControllerMode.GAMEPAD) {
                 DualSenseGamepadView(
                     state = state,
+                    store = store,
+                    isEditMode = isEditMode,
                     onLeftStickChange = onLeftStickChange,
                     onRightStickChange = onRightStickChange,
                     onThrottleChange = onThrottleChange,
@@ -222,6 +248,8 @@ private fun ControllerScreen(
             } else {
                 RacingWheelView(
                     state = state,
+                    store = store,
+                    isEditMode = isEditMode,
                     onSteeringChange = onSteeringChange,
                     onThrottleChange = onThrottleChange,
                     onBrakeChange = onBrakeChange,
@@ -236,6 +264,8 @@ private fun ControllerScreen(
 @Composable
 private fun DualSenseGamepadView(
     state: ControllerUiState,
+    store: ControllerPreferencesStore,
+    isEditMode: Boolean,
     onLeftStickChange: (Float, Float) -> Unit,
     onRightStickChange: (Float, Float) -> Unit,
     onThrottleChange: (Float) -> Unit,
@@ -253,23 +283,29 @@ private fun DualSenseGamepadView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SonyAdaptiveTrigger("LT (Aim)", state.brake, Color(0xFF00F0FF)) { onBrakeChange(it) }
-                SonyBumperButton("LB", 0x0100.toShort(), onButtonFlag)
+            DraggableControlContainer("left_triggers", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SonyAdaptiveTrigger("LT (Aim)", state.brake, Color(0xFF00F0FF)) { onBrakeChange(it) }
+                    SonyBumperButton("LB", 0x0100.toShort(), onButtonFlag)
+                }
             }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("L3 (MOVE)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E95A5))
-                Spacer(Modifier.height(2.dp))
-                SonyAnalogJoystick(
-                    valueX = state.leftStickX,
-                    valueY = state.leftStickY,
-                    onValueChange = onLeftStickChange,
-                    modifier = Modifier.size(135.dp)
-                )
+            DraggableControlContainer("left_stick", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("L3 (MOVE)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E95A5))
+                    Spacer(Modifier.height(2.dp))
+                    SonyAnalogJoystick(
+                        valueX = state.leftStickX,
+                        valueY = state.leftStickY,
+                        onValueChange = onLeftStickChange,
+                        modifier = Modifier.size(130.dp)
+                    )
+                }
             }
 
-            SonyDPadCluster(onButtonFlag)
+            DraggableControlContainer("dpad", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                SonyDPadCluster(onButtonFlag)
+            }
         }
 
         // Center Column: Touchpad Hub & System Buttons
@@ -281,7 +317,7 @@ private fun DualSenseGamepadView(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(60.dp)
+                    .size(56.dp)
                     .clip(CircleShape)
                     .background(Brush.radialGradient(listOf(Color(0xFF1E2230), Color(0xFF0E1017))))
                     .border(2.dp, Color(0xFFD6FF61), CircleShape)
@@ -289,11 +325,11 @@ private fun DualSenseGamepadView(
                 Image(
                     painter = painterResource(id = R.drawable.ic_axis_logo),
                     contentDescription = "Axis Hub",
-                    modifier = Modifier.size(36.dp).clip(CircleShape)
+                    modifier = Modifier.size(34.dp).clip(CircleShape)
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SonyPillButton("SELECT", 0x0020.toShort(), onButtonFlag)
@@ -307,9 +343,11 @@ private fun DualSenseGamepadView(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceAround
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SonyBumperButton("RB", 0x0200.toShort(), onButtonFlag)
-                SonyAdaptiveTrigger("RT (Attack)", state.throttle, Color(0xFFFF3366)) { onThrottleChange(it) }
+            DraggableControlContainer("right_triggers", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SonyBumperButton("RB", 0x0200.toShort(), onButtonFlag)
+                    SonyAdaptiveTrigger("RT (Attack)", state.throttle, Color(0xFFFF3366)) { onThrottleChange(it) }
+                }
             }
 
             Row(
@@ -317,30 +355,246 @@ private fun DualSenseGamepadView(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ABXY Action Buttons
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
-                        SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                DraggableControlContainer("action_buttons", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                            SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                        }
+                        SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                     }
-                    SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                 }
 
-                // Right Stick (Camera Look)
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("R3 (LOOK)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E95A5))
-                    Spacer(Modifier.height(2.dp))
-                    SonyAnalogJoystick(
-                        valueX = state.rightStickX,
-                        valueY = state.rightStickY,
-                        onValueChange = onRightStickChange,
-                        modifier = Modifier.size(135.dp)
+                DraggableControlContainer("right_stick", store, store.currentProfile, "GAMEPAD", isEditMode) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("R3 (LOOK)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E95A5))
+                        Spacer(Modifier.height(2.dp))
+                        SonyAnalogJoystick(
+                            valueX = state.rightStickX,
+                            valueY = state.rightStickY,
+                            onValueChange = onRightStickChange,
+                            modifier = Modifier.size(130.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RacingWheelView(
+    state: ControllerUiState,
+    store: ControllerPreferencesStore,
+    isEditMode: Boolean,
+    onSteeringChange: (Float) -> Unit,
+    onThrottleChange: (Float) -> Unit,
+    onBrakeChange: (Float) -> Unit,
+    onHandbrakeToggle: (Boolean) -> Unit,
+    onButtonFlag: (Short, Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Left Column: Brake & Handbrake
+        DraggableControlContainer("brake_pedal", store, store.currentProfile, "RACING", isEditMode) {
+            Column(
+                modifier = Modifier.width(68.dp).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                PedalSlider(
+                    value = state.brake,
+                    onValueChange = onBrakeChange,
+                    fillColor = Color(0xFFFF4D4D),
+                    modifier = Modifier.weight(1f).width(48.dp)
+                )
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                onHandbrakeToggle(true)
+                                val up = waitForUpOrCancellation()
+                                onHandbrakeToggle(false)
+                            }
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
+                ) {
+                    Text("HANDBRAKE", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Center Column: Steering Wheel
+        DraggableControlContainer("wheel", store, store.currentProfile, "RACING", isEditMode, modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    InteractiveSteeringWheel(
+                        steering = state.leftStickX,
+                        onSteeringChange = onSteeringChange,
+                        modifier = Modifier.size(185.dp)
+                    )
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_axis_logo),
+                        contentDescription = "Axis Logo",
+                        modifier = Modifier.size(38.dp).clip(CircleShape)
                     )
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Steering: ${(state.leftStickX * 100).toInt()}%",
+                    color = Color(0xFFD6FF61),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Right Column: Throttle & ABXY Buttons
+        DraggableControlContainer("throttle_pedal", store, store.currentProfile, "RACING", isEditMode) {
+            Column(
+                modifier = Modifier.width(120.dp).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PedalSlider(
+                        value = state.throttle,
+                        onValueChange = onThrottleChange,
+                        fillColor = Color(0xFFD6FF61),
+                        modifier = Modifier.width(48.dp).fillMaxHeight()
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                            SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                        }
+                        SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DraggableControlContainer(
+    elementKey: String,
+    store: ControllerPreferencesStore,
+    activeProfile: String,
+    activeMode: String,
+    isEditMode: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var transform by remember(activeProfile, activeMode, elementKey) {
+        mutableStateOf(store.getTransform(activeProfile, activeMode, elementKey))
+    }
+
+    var dragOffset by remember(activeProfile, activeMode, elementKey) {
+        mutableStateOf(Offset(transform.offsetX, transform.offsetY))
+    }
+    var currentScale by remember(activeProfile, activeMode, elementKey) {
+        mutableFloatStateOf(transform.scale)
+    }
+
+    Box(
+        modifier = modifier
+            .offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) }
+            .graphicsLayer {
+                scaleX = currentScale
+                scaleY = currentScale
+            }
+            .then(
+                if (isEditMode) {
+                    Modifier
+                        .border(1.5.dp, Color(0xFFD6FF61), RoundedCornerShape(12.dp))
+                        .background(Color(0xFFD6FF61).copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        .pointerInput(activeProfile, activeMode, elementKey) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                val newX = dragOffset.x + dragAmount.x
+                                val newY = dragOffset.y + dragAmount.y
+                                dragOffset = Offset(newX, newY)
+                                val updated = ControlElementTransform(newX, newY, currentScale)
+                                store.setTransform(activeProfile, activeMode, elementKey, updated)
+                            }
+                        }
+                } else Modifier
+            )
+    ) {
+        content()
+
+        if (isEditMode) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = (-12).dp, x = 12.dp)
+                    .background(Color.Black, CircleShape)
+                    .border(1.dp, Color(0xFFD6FF61), CircleShape)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "-",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable {
+                        val newScale = (currentScale - 0.1f).coerceIn(0.6f, 2.0f)
+                        currentScale = newScale
+                        store.setTransform(activeProfile, activeMode, elementKey, ControlElementTransform(dragOffset.x, dragOffset.y, newScale))
+                    }
+                )
+                Text(
+                    "${(currentScale * 100).toInt()}%",
+                    color = Color(0xFFD6FF61),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.sp
+                )
+                Text(
+                    "+",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable {
+                        val newScale = (currentScale + 0.1f).coerceIn(0.6f, 2.0f)
+                        currentScale = newScale
+                        store.setTransform(activeProfile, activeMode, elementKey, ControlElementTransform(dragOffset.x, dragOffset.y, newScale))
+                    }
+                )
             }
         }
     }
@@ -379,7 +633,6 @@ private fun SonyAnalogJoystick(
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = Offset(size.width / 2f, size.height / 2f)
             drawCircle(color = Color(0xFF262B3C), radius = size.minDimension / 2f - 6.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
             drawCircle(color = Color(0xFF1F2332), radius = size.minDimension / 3.5f, style = Stroke(width = 1.dp.toPx()))
         }
@@ -580,6 +833,8 @@ private fun SonyDPadButton(arrow: String, flag: Short, onButtonFlag: (Short, Boo
 @Composable
 private fun RacingWheelView(
     state: ControllerUiState,
+    store: ControllerPreferencesStore,
+    isEditMode: Boolean,
     onSteeringChange: (Float) -> Unit,
     onThrottleChange: (Float) -> Unit,
     onBrakeChange: (Float) -> Unit,
@@ -591,101 +846,107 @@ private fun RacingWheelView(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Left Column: Brake & Handbrake
-        Column(
-            modifier = Modifier.width(68.dp).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            PedalSlider(
-                value = state.brake,
-                onValueChange = onBrakeChange,
-                fillColor = Color(0xFFFF4D4D),
-                modifier = Modifier.weight(1f).width(48.dp)
-            )
-            Button(
-                onClick = {},
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .pointerInput(Unit) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            down.consume()
-                            onHandbrakeToggle(true)
-                            val up = waitForUpOrCancellation()
-                            onHandbrakeToggle(false)
-                        }
-                    },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
+        DraggableControlContainer("brake_pedal", store, store.currentProfile, "RACING", isEditMode) {
+            Column(
+                modifier = Modifier.width(68.dp).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("HANDBRAKE", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                PedalSlider(
+                    value = state.brake,
+                    onValueChange = onBrakeChange,
+                    fillColor = Color(0xFFFF4D4D),
+                    modifier = Modifier.weight(1f).width(48.dp)
+                )
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                onHandbrakeToggle(true)
+                                val up = waitForUpOrCancellation()
+                                onHandbrakeToggle(false)
+                            }
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
+                ) {
+                    Text("HANDBRAKE", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
 
         Spacer(Modifier.width(12.dp))
 
         // Center Column: Steering Wheel
-        Column(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                InteractiveSteeringWheel(
-                    steering = state.leftStickX,
-                    onSteeringChange = onSteeringChange,
-                    modifier = Modifier.size(190.dp)
-                )
-                Image(
-                    painter = painterResource(id = R.drawable.ic_axis_logo),
-                    contentDescription = "Axis Logo",
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
+        DraggableControlContainer("wheel", store, store.currentProfile, "RACING", isEditMode, modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    InteractiveSteeringWheel(
+                        steering = state.leftStickX,
+                        onSteeringChange = onSteeringChange,
+                        modifier = Modifier.size(185.dp)
+                    )
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_axis_logo),
+                        contentDescription = "Axis Logo",
+                        modifier = Modifier.size(38.dp).clip(CircleShape)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Steering: ${(state.leftStickX * 100).toInt()}%",
+                    color = Color(0xFFD6FF61),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Steering: ${(state.leftStickX * 100).toInt()}%",
-                color = Color(0xFFD6FF61),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
         }
 
         Spacer(Modifier.width(12.dp))
 
         // Right Column: Throttle & ABXY Buttons
-        Column(
-            modifier = Modifier.width(120.dp).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-
-            Row(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        DraggableControlContainer("throttle_pedal", store, store.currentProfile, "RACING", isEditMode) {
+            Column(
+                modifier = Modifier.width(120.dp).fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                PedalSlider(
-                    value = state.throttle,
-                    onValueChange = onThrottleChange,
-                    fillColor = Color(0xFFD6FF61),
-                    modifier = Modifier.width(48.dp).fillMaxHeight()
-                )
+                Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
 
-                Column(
-                    modifier = Modifier.fillMaxHeight(),
-                    verticalArrangement = Arrangement.SpaceEvenly,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
-                        SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                    PedalSlider(
+                        value = state.throttle,
+                        onValueChange = onThrottleChange,
+                        fillColor = Color(0xFFD6FF61),
+                        modifier = Modifier.width(48.dp).fillMaxHeight()
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                            SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                        }
+                        SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                     }
-                    SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                 }
             }
         }
