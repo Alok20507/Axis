@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Axis.Desktop.Controller;
 using Axis.Desktop.Networking;
 using Axis.Desktop.Pairing;
+using Axis.Desktop.Storage;
 
 namespace Axis.Desktop.ViewModels;
 
@@ -32,7 +33,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             : new UnavailableVirtualGamepadBackend("Virtual controller requires Windows with ViGEmBus driver.");
 
         var runtime = new ControllerRuntime(backend);
-        var controlReceiver = new ControlReceiver(runtime);
+        var controlReceiver = new ControlReceiver(runtime, status => ConnectionStatus = status);
         _ = Task.Run(controlReceiver.RunAsync);
 
         var pairingServer = new PairingServer(
@@ -40,6 +41,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             onSession: key =>
             {
                 controlReceiver.SessionKey = key;
+                SessionStore.SaveSessionKey(key);
                 ConnectionStatus = "Encrypted AES-256-GCM Session Active (120 Hz)";
             }
         );

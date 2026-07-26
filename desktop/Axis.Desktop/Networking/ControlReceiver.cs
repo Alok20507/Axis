@@ -3,16 +3,18 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using Axis.Desktop.Controller;
+using Axis.Desktop.Storage;
 
 namespace Axis.Desktop.Networking;
 
 /// Receives fixed-width Android control frames (with optional AES-GCM encryption).
-public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposable
+public sealed class ControlReceiver(ControllerRuntime runtime, Action<string>? onStatusChanged = null) : IAsyncDisposable
 {
     public const int Port = 45102;
     private readonly CancellationTokenSource _stop = new();
     private UdpClient? _socket;
     public byte[]? SessionKey { get; set; }
+    private bool _hasReportedConnection;
 
     public async Task RunAsync()
     {
@@ -23,36 +25,63 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
             try { datagram = await _socket.ReceiveAsync(_stop.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) { break; }
 
-            if (!TryDecode(datagram.Buffer, SessionKey, out var state)) continue;
+            if (!TryDecode(datagram.Buffer, ref stateKey, out var state)) continue;
+
+            if (!_hasReportedConnection)
+            {
+                _hasReportedConnection = true;
+                onStatusChanged?.Invoke("Encrypted AES-256-GCM Session Active (120 Hz)");
+            }
+
+            // Move Windows Mouse when in Mouse Mode or right stick dragging
+            if (MathF.Abs(state.RightStickX) > 0.08f || MathF.Abs(state.RightStickY) > 0.08f)
+            {
+                WindowsMouse.MoveDelta(state.RightStickX, state.RightStickY);
+            }
+
             try { await runtime.ApplyAsync(state, _stop.Token).ConfigureAwait(false); }
             catch (InvalidOperationException) { /* backend unavailable */ }
         }
     }
 
-    private static bool TryDecode(ReadOnlySpan<byte> buffer, byte[]? sessionKey, out NormalizedControllerState state)
+    private byte[]? stateKey;
+
+    private bool TryDecode(ReadOnlySpan<byte> buffer, ref byte[]? activeKey, out NormalizedControllerState state)
     {
         state = NormalizedControllerState.Neutral;
         ReadOnlySpan<byte> frame = buffer;
 
-        // AES-GCM Encrypted packet handling (IV: 12B + Len: 4B + CipherText: N)
-        if (sessionKey != null && buffer.Length >= 12 + 4 + 36)
+        // Try decrypting with current SessionKey or saved SessionStore keys
+        if (buffer.Length >= 12 + 4 + 36)
         {
-            try
+            var candidates = new List<byte[]>();
+            if (SessionKey != null) candidates.Add(SessionKey);
+            if (activeKey != null && !candidates.Contains(activeKey)) candidates.Add(activeKey);
+            candidates.AddRange(SessionStore.GetSessionKeys().Where(k => !candidates.Contains(k)));
+
+            foreach (var candidate in candidates)
             {
-                var iv = buffer[..12];
-                var cipherLength = BinaryPrimitives.ReadInt32BigEndian(buffer[12..16]);
-                if (cipherLength > 0 && buffer.Length >= 16 + cipherLength)
+                try
                 {
-                    var cipherTextWithTag = buffer[16..(16 + cipherLength)];
-                    var plain = new byte[cipherLength - 16];
-                    using var aes = new AesGcm(sessionKey, 16);
-                    aes.Decrypt(iv, cipherTextWithTag[..^16], cipherTextWithTag[^16..], plain);
-                    frame = plain;
+                    var iv = buffer[..12];
+                    var cipherLength = BinaryPrimitives.ReadInt32BigEndian(buffer[12..16]);
+                    if (cipherLength > 0 && buffer.Length >= 16 + cipherLength)
+                    {
+                        var cipherTextWithTag = buffer[16..(16 + cipherLength)];
+                        var plain = new byte[cipherLength - 16];
+                        using var aes = new AesGcm(candidate, 16);
+                        aes.Decrypt(iv, cipherTextWithTag[..^16], cipherTextWithTag[^16..], plain);
+                        frame = plain;
+                        SessionKey = candidate;
+                        activeKey = candidate;
+                        SessionStore.SaveSessionKey(candidate);
+                        break;
+                    }
                 }
-            }
-            catch (CryptographicException)
-            {
-                // Fall back to plain check if key mismatch
+                catch (CryptographicException)
+                {
+                    // Try next candidate key
+                }
             }
         }
 
@@ -86,7 +115,7 @@ public sealed class ControlReceiver(ControllerRuntime runtime) : IAsyncDisposabl
         {
             lsX = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[20..]));
             throttle = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[24..]));
-            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[36..]));
+            brake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[28..]));
             handbrake = BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32BigEndian(frame[32..]));
             buttonFlags = frame.Length >= 38 ? BinaryPrimitives.ReadUInt16BigEndian(frame[36..]) : (ushort)0;
         }
