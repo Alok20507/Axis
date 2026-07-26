@@ -735,7 +735,8 @@ private fun InteractiveSteeringWheel(
     onSteeringChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var touchAngle by remember { mutableFloatStateOf(0f) }
+    var accumulatedSteering by remember { mutableFloatStateOf(0f) }
+    var startTouchAngle by remember { mutableFloatStateOf(0f) }
 
     Canvas(
         modifier = modifier
@@ -743,21 +744,32 @@ private fun InteractiveSteeringWheel(
                 detectDragGestures(
                     onDragStart = { offset ->
                         val center = Offset(size.width / 2f, size.height / 2f)
-                        touchAngle = atan2(offset.y - center.y, offset.x - center.x)
+                        startTouchAngle = atan2(offset.y - center.y, offset.x - center.x)
                     },
                     onDrag = { change, _ ->
                         val center = Offset(size.width / 2f, size.height / 2f)
-                        val currentAngle = atan2(change.position.y - center.y, change.position.x - center.x)
-                        var delta = (currentAngle - touchAngle) * (180f / Math.PI.toFloat())
-                        if (delta > 180f) delta -= 360f
-                        if (delta < -180f) delta += 360f
+                        val currentTouchAngle = atan2(change.position.y - center.y, change.position.x - center.x)
+                        var deltaRad = currentTouchAngle - startTouchAngle
 
-                        val newSteering = (steering + delta / 180f).coerceIn(-1f, 1f)
-                        onSteeringChange(newSteering)
-                        touchAngle = currentAngle
+                        // Normalize radian wrapping [-PI, PI]
+                        if (deltaRad > Math.PI) deltaRad -= (2 * Math.PI).toFloat()
+                        if (deltaRad < -Math.PI) deltaRad += (2 * Math.PI).toFloat()
+
+                        val deltaNormalized = deltaRad / (Math.PI.toFloat() * 0.5f) // 90 deg = 100% lock
+                        val targetSteering = (accumulatedSteering + deltaNormalized).coerceIn(-1f, 1f)
+
+                        accumulatedSteering = targetSteering
+                        onSteeringChange(targetSteering)
+                        startTouchAngle = currentTouchAngle
                     },
-                    onDragEnd = { onSteeringChange(0f) },
-                    onDragCancel = { onSteeringChange(0f) }
+                    onDragEnd = {
+                        accumulatedSteering = 0f
+                        onSteeringChange(0f)
+                    },
+                    onDragCancel = {
+                        accumulatedSteering = 0f
+                        onSteeringChange(0f)
+                    }
                 )
             }
     ) {
