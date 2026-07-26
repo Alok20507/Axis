@@ -1,12 +1,17 @@
 package com.racelink.controller.feature.connect
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import android.app.Activity
+import android.content.Context
+import android.content.pm.ActivityInfo
+import android.os.BatteryManager
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +30,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -47,6 +52,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -54,8 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.racelink.controller.core.ui.R
-import kotlin.math.roundToInt
 import kotlin.math.atan2
+import kotlin.math.roundToInt
 
 @Composable
 fun ControllerRoute(
@@ -64,10 +70,23 @@ fun ControllerRoute(
     sessionKey: ByteArray,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+
+    // Auto-enforce Landscape Orientation when Controller Screen opens
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val originalOrientation = activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        onDispose {
+            activity?.requestedOrientation = originalOrientation
+        }
+    }
+
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(address) {
         viewModel.startSession(address, sessionKey)
     }
+
     ControllerScreen(
         state = state,
         onModeChange = viewModel::setMode,
@@ -97,6 +116,15 @@ private fun ControllerScreen(
     onToggleGyro: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    // Read real battery percentage from Android BatteryManager
+    val batteryPct = remember(context) {
+        runCatching {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+        }.getOrDefault(100)
+    }
+
     Surface(
         color = Color(0xFF090A0D),
         contentColor = Color.White,
@@ -108,11 +136,11 @@ private fun ControllerScreen(
                 .statusBarsPadding()
                 .padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
-            // Header Bar: Sony DualSense Style Metallic Glass Bar
+            // Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(42.dp)
+                    .height(40.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF13151D))
                     .border(1.dp, Color(0xFF262936), RoundedCornerShape(14.dp))
@@ -125,12 +153,12 @@ private fun ControllerScreen(
                         onClick = onBack,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E212B)),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(32.dp)
+                        modifier = Modifier.height(30.dp)
                     ) {
                         Text("← Back", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
-                    // Controller Mode Segmented Pill
+                    // Mode Toggle: Gamepad vs Racing Wheel
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
@@ -144,7 +172,7 @@ private fun ControllerScreen(
                                 contentColor = if (state.mode == ControllerMode.GAMEPAD) Color.Black else Color.White
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(28.dp)
+                            modifier = Modifier.height(26.dp)
                         ) {
                             Text("🎮 Gamepad", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
@@ -156,15 +184,15 @@ private fun ControllerScreen(
                                 contentColor = if (state.mode == ControllerMode.RACING) Color.Black else Color.White
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(28.dp)
+                            modifier = Modifier.height(26.dp)
                         ) {
                             Text("🏎️ Wheel", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF00E676)))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("⚡ $batteryPct%", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Button(
                         onClick = { onToggleGyro(!state.useGyro) },
@@ -173,7 +201,7 @@ private fun ControllerScreen(
                             contentColor = if (state.useGyro) Color.Black else Color.White
                         ),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(30.dp)
+                        modifier = Modifier.height(28.dp)
                     ) {
                         Text(if (state.useGyro) "Gyro ON" else "Gyro OFF", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
@@ -183,7 +211,6 @@ private fun ControllerScreen(
             Spacer(Modifier.height(6.dp))
 
             if (state.mode == ControllerMode.GAMEPAD) {
-                // Sony DualSense AAA Action Gamepad View
                 DualSenseGamepadView(
                     state = state,
                     onLeftStickChange = onLeftStickChange,
@@ -193,7 +220,6 @@ private fun ControllerScreen(
                     onButtonFlag = onButtonFlag
                 )
             } else {
-                // Racing Wheel View
                 RacingWheelView(
                     state = state,
                     onSteeringChange = onSteeringChange,
@@ -221,7 +247,7 @@ private fun DualSenseGamepadView(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left Column: LT Trigger + LB Bumper + Sony Left Stick + D-Pad
+        // Left Column: LT + LB + Left Stick + D-Pad
         Column(
             modifier = Modifier.weight(1f).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -246,7 +272,7 @@ private fun DualSenseGamepadView(
             SonyDPadCluster(onButtonFlag)
         }
 
-        // Center Column: PlayStation Touchpad Lightbar & System Buttons
+        // Center Column: Touchpad Hub & System Buttons
         Column(
             modifier = Modifier.width(96.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -270,12 +296,12 @@ private fun DualSenseGamepadView(
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SonyPillButton("SHARE", 0x0020.toShort(), onButtonFlag)
-                SonyPillButton("OPTIONS", 0x0010.toShort(), onButtonFlag)
+                SonyPillButton("SELECT", 0x0020.toShort(), onButtonFlag)
+                SonyPillButton("START", 0x0010.toShort(), onButtonFlag)
             }
         }
 
-        // Right Column: RT Trigger + RB Bumper + Sony Action ABXY + Right Stick
+        // Right Column: RT + RB + ABXY + Right Stick
         Column(
             modifier = Modifier.weight(1f).fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -291,17 +317,17 @@ private fun DualSenseGamepadView(
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // PlayStation Neon ABXY Action Buttons
+                // ABXY Action Buttons
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    SonyActionButton("Y", "△", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                    SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SonyActionButton("X", "▢", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
-                        SonyActionButton("B", "◯", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                        SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                        SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
                     }
-                    SonyActionButton("A", "✕", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
+                    SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                 }
 
                 // Right Stick (Camera Look)
@@ -352,14 +378,12 @@ private fun SonyAnalogJoystick(
                 )
             }
     ) {
-        // Subtle concentric guide rings
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2f, size.height / 2f)
             drawCircle(color = Color(0xFF262B3C), radius = size.minDimension / 2f - 6.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
             drawCircle(color = Color(0xFF1F2332), radius = size.minDimension / 3.5f, style = Stroke(width = 1.dp.toPx()))
         }
 
-        // Sony Style 3D Concave Thumbgrip Cap
         val knobOffsetX = (valueX * 36).dp
         val knobOffsetY = (-valueY * 36).dp
 
@@ -387,7 +411,6 @@ private fun SonyAnalogJoystick(
 @Composable
 private fun SonyActionButton(
     letter: String,
-    symbol: String,
     accentColor: Color,
     onPress: (Boolean) -> Unit,
 ) {
@@ -399,36 +422,26 @@ private fun SonyActionButton(
             .size(38.dp)
             .shadow(if (isPressed) 2.dp else 4.dp, CircleShape)
             .clip(CircleShape)
-            .background(
-                if (isPressed) accentColor else Color(0xFF161822)
-            )
+            .background(if (isPressed) accentColor else Color(0xFF161822))
             .border(2.dp, accentColor, CircleShape)
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = {
-                        isPressed = true
-                        onPress(true)
-                    },
-                    onDragEnd = {
-                        isPressed = false
-                        onPress(false)
-                    },
-                    onDragCancel = {
-                        isPressed = false
-                        onPress(false)
-                    },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isPressed = true
+                    onPress(true)
+                    val up = waitForUpOrCancellation()
+                    isPressed = false
+                    onPress(false)
+                }
             }
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text(
-                text = letter,
-                color = if (isPressed) Color.Black else accentColor,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
+        Text(
+            text = letter,
+            color = if (isPressed) Color.Black else accentColor,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Black
+        )
     }
 }
 
@@ -448,12 +461,13 @@ private fun SonyAdaptiveTrigger(
             .background(Color(0xFF14161F))
             .border(1.dp, Color(0xFF282C3D), RoundedCornerShape(10.dp))
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { onValueChange(1f) },
-                    onDragEnd = { onValueChange(0f) },
-                    onDragCancel = { onValueChange(0f) },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    onValueChange(1f)
+                    val up = waitForUpOrCancellation()
+                    onValueChange(0f)
+                }
             }
     ) {
         Box(
@@ -485,21 +499,15 @@ private fun SonyBumperButton(text: String, flag: Short, onButtonFlag: (Short, Bo
             .background(if (isPressed) Color(0xFFD6FF61) else Color(0xFF1E212B))
             .border(1.dp, Color(0xFF33384A), RoundedCornerShape(10.dp))
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = {
-                        isPressed = true
-                        onButtonFlag(flag, true)
-                    },
-                    onDragEnd = {
-                        isPressed = false
-                        onButtonFlag(flag, false)
-                    },
-                    onDragCancel = {
-                        isPressed = false
-                        onButtonFlag(flag, false)
-                    },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isPressed = true
+                    onButtonFlag(flag, true)
+                    val up = waitForUpOrCancellation()
+                    isPressed = false
+                    onButtonFlag(flag, false)
+                }
             }
     ) {
         Text(text, fontSize = 10.sp, color = if (isPressed) Color.Black else Color.White, fontWeight = FontWeight.Bold)
@@ -511,17 +519,18 @@ private fun SonyPillButton(text: String, flag: Short, onButtonFlag: (Short, Bool
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .width(40.dp)
+            .width(42.dp)
             .height(24.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(Color(0xFF1D202C))
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { onButtonFlag(flag, true) },
-                    onDragEnd = { onButtonFlag(flag, false) },
-                    onDragCancel = { onButtonFlag(flag, false) },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    onButtonFlag(flag, true)
+                    val up = waitForUpOrCancellation()
+                    onButtonFlag(flag, false)
+                }
             }
     ) {
         Text(text, fontSize = 7.sp, color = Color.LightGray, fontWeight = FontWeight.Bold)
@@ -553,21 +562,15 @@ private fun SonyDPadButton(arrow: String, flag: Short, onButtonFlag: (Short, Boo
             .background(if (isPressed) Color(0xFFD6FF61) else Color(0xFF1A1D28))
             .border(1.dp, Color(0xFF2C3144), RoundedCornerShape(6.dp))
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = {
-                        isPressed = true
-                        onButtonFlag(flag, true)
-                    },
-                    onDragEnd = {
-                        isPressed = false
-                        onButtonFlag(flag, false)
-                    },
-                    onDragCancel = {
-                        isPressed = false
-                        onButtonFlag(flag, false)
-                    },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isPressed = true
+                    onButtonFlag(flag, true)
+                    val up = waitForUpOrCancellation()
+                    isPressed = false
+                    onButtonFlag(flag, false)
+                }
             }
     ) {
         Text(arrow, fontSize = 11.sp, color = if (isPressed) Color.Black else Color.White, fontWeight = FontWeight.Bold)
@@ -606,12 +609,13 @@ private fun RacingWheelView(
                     .fillMaxWidth()
                     .height(48.dp)
                     .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = { onHandbrakeToggle(true) },
-                            onDragEnd = { onHandbrakeToggle(false) },
-                            onDragCancel = { onHandbrakeToggle(false) },
-                            onDrag = { _, _ -> }
-                        )
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            onHandbrakeToggle(true)
+                            val up = waitForUpOrCancellation()
+                            onHandbrakeToggle(false)
+                        }
                     },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
@@ -676,12 +680,12 @@ private fun RacingWheelView(
                     verticalArrangement = Arrangement.SpaceEvenly,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    SonyActionButton("Y", "△", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                    SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SonyActionButton("X", "▢", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
-                        SonyActionButton("B", "◯", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
+                        SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                        SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
                     }
-                    SonyActionButton("A", "✕", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
+                    SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
                 }
             }
         }

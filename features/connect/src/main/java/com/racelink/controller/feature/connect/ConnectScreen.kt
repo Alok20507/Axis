@@ -1,7 +1,6 @@
 package com.racelink.controller.feature.connect
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,7 +46,7 @@ fun ConnectRoute(
     ConnectScreen(
         state = state,
         onRefresh = viewModel::discover,
-        onSelectDesktop = viewModel::selectDesktop,
+        onSelectDesktop = { desktop -> viewModel.selectDesktop(desktop, onPairSuccess) },
         onPinChange = viewModel::updatePinInput,
         onConfirmPairing = { viewModel.pairSelectedDesktop(onPairSuccess) },
         onDismissPairing = viewModel::dismissPairing,
@@ -126,7 +125,7 @@ private fun ConnectScreen(
         }
     }
 
-    // 6-Digit PIN Pairing Dialog
+    // 6-Digit PIN Pairing Dialog (Only displayed for un-paired new PCs)
     state.selectedDesktop?.let { desktop ->
         AlertDialog(
             onDismissRequest = onDismissPairing,

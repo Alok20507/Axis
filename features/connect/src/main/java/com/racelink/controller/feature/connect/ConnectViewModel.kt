@@ -10,6 +10,7 @@ import com.racelink.controller.core.storage.PairedDesktopStore
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.net.InetAddress
@@ -59,8 +60,17 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun selectDesktop(desktop: DiscoveredDesktop) {
-        mutableState.update { it.copy(selectedDesktop = desktop, pinInput = "", errorMessage = null) }
+    fun selectDesktop(desktop: DiscoveredDesktop, onConnectDirectly: (DiscoveredDesktop, ByteArray) -> Unit) {
+        viewModelScope.launch {
+            val saved = pairedStore.savedSession.firstOrNull()
+            if (saved != null && (saved.hostAddress == desktop.address || saved.sessionKey.size == 32)) {
+                // Auto-reconnect using saved paired session key (no PIN prompt required!)
+                onConnectDirectly(desktop, saved.sessionKey)
+            } else {
+                // Prompt for initial 6-digit PIN pairing
+                mutableState.update { it.copy(selectedDesktop = desktop, pinInput = "", errorMessage = null) }
+            }
+        }
     }
 
     fun dismissPairing() {
