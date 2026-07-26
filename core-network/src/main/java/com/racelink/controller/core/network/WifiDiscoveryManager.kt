@@ -3,6 +3,8 @@ package com.racelink.controller.core.network
 import android.content.Context
 import android.net.wifi.WifiManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -14,7 +16,7 @@ import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.util.concurrent.ThreadLocalRandom
 
-class WifiDiscoveryManager(context: Context) {
+class WifiDiscoveryManager(private val context: Context) {
     private val wifiManager = context.applicationContext.getSystemService(WifiManager::class.java)
 
     suspend fun discover(timeoutMillis: Int = 3_500): List<DiscoveredDesktop> = withContext(Dispatchers.IO) {
@@ -23,30 +25,60 @@ class WifiDiscoveryManager(context: Context) {
         try {
             val nonce = ThreadLocalRandom.current().nextLong()
             val sentAt = System.nanoTime()
-            DatagramSocket().use { socket ->
-                socket.broadcast = true
-                socket.soTimeout = 300
-                val request = packet(PacketType.DISCOVERY_REQUEST, DiscoveryProtocol.request(nonce))
-                discoveryTargets().forEach { target ->
-                    runCatching { socket.send(DatagramPacket(request, request.size, target, DiscoveryProtocol.DISCOVERY_PORT)) }
+            val targets = discoveryTargets()
+
+            val udpTask = async {
+                DatagramSocket().use { socket ->
+                    socket.broadcast = true
+                    socket.soTimeout = 300
+                    val request = packet(PacketType.DISCOVERY_REQUEST, DiscoveryProtocol.request(nonce))
+                    targets.forEach { target ->
+                        runCatching { socket.send(DatagramPacket(request, request.size, target, DiscoveryProtocol.DISCOVERY_PORT)) }
+                    }
+                    val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
+                    val results = linkedMapOf<String, DiscoveredDesktop>()
+                    val receiveBuffer = ByteArray(RaceLinkPacketCodec.MAX_PACKET_BYTES)
+                    while (System.nanoTime() < deadline) {
+                        try {
+                            val incoming = DatagramPacket(receiveBuffer, receiveBuffer.size)
+                            socket.receive(incoming)
+                            val parsed = RaceLinkPacketCodec.decode(ByteBuffer.wrap(incoming.data, 0, incoming.length)) ?: continue
+                            if (parsed.type != PacketType.DISCOVERY_RESPONSE) continue
+                            val response = DiscoveryProtocol.decodeResponse(parsed.payload) ?: continue
+                            if (response.nonce != nonce) continue
+                            val host = incoming.address.hostAddress ?: continue
+                            results[host] = DiscoveredDesktop(response.hostName, host, response.pairingPort, response.controllerVersion, (System.nanoTime() - sentAt) / 1_000_000L)
+                        } catch (_: SocketTimeoutException) { /* bounded receive window */ }
+                    }
+                    results.values.toList()
                 }
-                val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
-                val results = linkedMapOf<String, DiscoveredDesktop>()
-                val receiveBuffer = ByteArray(RaceLinkPacketCodec.MAX_PACKET_BYTES)
-                while (System.nanoTime() < deadline) {
-                    try {
-                        val incoming = DatagramPacket(receiveBuffer, receiveBuffer.size)
-                        socket.receive(incoming)
-                        val parsed = RaceLinkPacketCodec.decode(ByteBuffer.wrap(incoming.data, 0, incoming.length)) ?: continue
-                        if (parsed.type != PacketType.DISCOVERY_RESPONSE) continue
-                        val response = DiscoveryProtocol.decodeResponse(parsed.payload) ?: continue
-                        if (response.nonce != nonce) continue
-                        val host = incoming.address.hostAddress ?: continue
-                        results[host] = DiscoveredDesktop(response.hostName, host, response.pairingPort, response.controllerVersion, (System.nanoTime() - sentAt) / 1_000_000L)
-                    } catch (_: SocketTimeoutException) { /* bounded receive window */ }
-                }
-                results.values.toList()
             }
+
+            val udpResults = udpTask.await()
+            if (udpResults.isNotEmpty()) return@withContext udpResults
+
+            // Fallback: Parallel subnet TCP probe if UDP broadcast is blocked by router AP isolation
+            val activeIps = getActiveLocalIps()
+            val tcpCandidates = activeIps.flatMap { ip ->
+                val prefix = ip.substringBeforeLast(".")
+                (1..254).map { "$prefix.$it" }
+            }.distinct()
+
+            // Parallel probe first 30 most likely hosts or active subnet IPs
+            val tcpResults = tcpCandidates.take(60).chunked(15).flatMap { chunk ->
+                chunk.map { candidate ->
+                    async {
+                        runCatching {
+                            Socket().use { socket ->
+                                socket.connect(InetSocketAddress(candidate, 45101), 350)
+                                DiscoveredDesktop("Axis PC ($candidate)", candidate, 45101, 1, (System.nanoTime() - sentAt) / 1_000_000L)
+                            }
+                        }.getOrNull()
+                    }
+                }.awaitAll().filterNotNull()
+            }
+
+            tcpResults
         } finally { lock?.release() }
     }
 
@@ -88,8 +120,20 @@ class WifiDiscoveryManager(context: Context) {
         return buffer.array().copyOf(buffer.position())
     }
 
+    private fun getActiveLocalIps(): List<String> = buildList {
+        runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence().filter { it.isUp && !it.isLoopback }.flatMap { it.interfaceAddresses.asSequence() }
+                .mapNotNullTo(this) { it.address.hostAddress?.takeIf { addr -> !addr.contains(":") && addr != "127.0.0.1" } }
+        }
+    }
+
     private fun discoveryTargets(): Set<InetAddress> = buildSet {
         add(InetAddress.getByName("255.255.255.255"))
+        val ips = getActiveLocalIps()
+        for (ip in ips) {
+            val prefix = ip.substringBeforeLast(".")
+            runCatching { add(InetAddress.getByName("$prefix.255")) }
+        }
         runCatching {
             NetworkInterface.getNetworkInterfaces().asSequence().filter { it.isUp && !it.isLoopback }.flatMap { it.interfaceAddresses.asSequence() }
                 .mapNotNullTo(this) { it.broadcast }
