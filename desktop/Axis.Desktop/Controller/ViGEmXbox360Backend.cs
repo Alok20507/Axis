@@ -4,21 +4,24 @@ using Nefarius.ViGEm.Client.Targets.Xbox360;
 
 namespace Axis.Desktop.Controller;
 
-/// Test backend for Windows 10/11. Requires the separately installed ViGEmBus driver.
+/// Virtual Xbox 360 controller backend for Windows 10/11 using Nefarius.ViGEm.Client.
 public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
 {
     private ViGEmClient? _client;
     private IXbox360Controller? _controller;
+    private bool _isConnected;
+
     public string DisplayName => "ViGEm virtual Xbox 360 controller";
-    public bool IsConnected => _controller?.IsConnected == true;
+    public bool IsConnected => _isConnected;
 
     public ValueTask ConnectAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (IsConnected) return ValueTask.CompletedTask;
+        if (_isConnected) return ValueTask.CompletedTask;
         _client = new ViGEmClient();
         _controller = _client.CreateXbox360Controller();
         _controller.Connect();
+        _isConnected = true;
         return ValueTask.CompletedTask;
     }
 
@@ -36,10 +39,17 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
 
     public ValueTask DisconnectAsync(CancellationToken cancellationToken)
     {
-        if (_controller?.IsConnected == true) _controller.Disconnect();
-        _controller = null; _client?.Dispose(); _client = null;
+        if (_isConnected)
+        {
+            _controller?.Disconnect();
+            _isConnected = false;
+        }
+        _controller = null;
+        _client?.Dispose();
+        _client = null;
         return ValueTask.CompletedTask;
     }
+
     public async ValueTask DisposeAsync() => await DisconnectAsync(CancellationToken.None);
 
     private static void SetButtons(IXbox360Controller controller, XboxButtons buttons)
@@ -47,6 +57,7 @@ public sealed class ViGEmXbox360Backend : IVirtualGamepadBackend
         foreach (var mapping in ButtonMap)
             controller.SetButtonState(mapping.button, (buttons & mapping.source) != 0);
     }
+
     private static readonly (Xbox360Button button, XboxButtons source)[] ButtonMap = [
         (Xbox360Button.A, XboxButtons.A), (Xbox360Button.B, XboxButtons.B), (Xbox360Button.X, XboxButtons.X), (Xbox360Button.Y, XboxButtons.Y),
         (Xbox360Button.Start, XboxButtons.Start), (Xbox360Button.Back, XboxButtons.Back), (Xbox360Button.LeftShoulder, XboxButtons.LeftShoulder), (Xbox360Button.RightShoulder, XboxButtons.RightShoulder),
