@@ -19,23 +19,23 @@ import java.util.concurrent.ThreadLocalRandom
 class WifiDiscoveryManager(private val context: Context) {
     private val wifiManager = context.applicationContext.getSystemService(WifiManager::class.java)
 
-    suspend fun discover(timeoutMillis: Int = 3_500): List<DiscoveredDesktop> = withContext(Dispatchers.IO) {
-        require(timeoutMillis in 500..10_000)
+    suspend fun discover(timeoutMillis: Int = 2_500): List<DiscoveredDesktop> = withContext(Dispatchers.IO) {
         val lock = wifiManager?.createMulticastLock("racelink-discovery")?.apply { setReferenceCounted(false); acquire() }
         try {
             val nonce = ThreadLocalRandom.current().nextLong()
             val sentAt = System.nanoTime()
             val targets = discoveryTargets()
 
+            // 1. Concurrent UDP Broadcast Scan
             val udpTask = async {
                 DatagramSocket().use { socket ->
                     socket.broadcast = true
-                    socket.soTimeout = 300
+                    socket.soTimeout = 400
                     val request = packet(PacketType.DISCOVERY_REQUEST, DiscoveryProtocol.request(nonce))
                     targets.forEach { target ->
                         runCatching { socket.send(DatagramPacket(request, request.size, target, DiscoveryProtocol.DISCOVERY_PORT)) }
                     }
-                    val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
+                    val deadline = System.nanoTime() + 1_500 * 1_000_000L
                     val results = linkedMapOf<String, DiscoveredDesktop>()
                     val receiveBuffer = ByteArray(RaceLinkPacketCodec.MAX_PACKET_BYTES)
                     while (System.nanoTime() < deadline) {
@@ -54,35 +54,37 @@ class WifiDiscoveryManager(private val context: Context) {
                 }
             }
 
+            // 2. Concurrent Parallel TCP Subnet Sweep (runs simultaneously with UDP)
+            val tcpTask = async {
+                val activeIps = getActiveLocalIps()
+                val tcpCandidates = activeIps.flatMap { ip ->
+                    val prefix = ip.substringBeforeLast(".")
+                    (1..254).map { "$prefix.$it" }
+                }.distinct()
+
+                tcpCandidates.chunked(32).flatMap { chunk ->
+                    chunk.map { candidate ->
+                        async {
+                            runCatching {
+                                Socket().use { socket ->
+                                    socket.connect(InetSocketAddress(candidate, 45101), 300)
+                                    DiscoveredDesktop("Axis PC ($candidate)", candidate, 45101, 1, (System.nanoTime() - sentAt) / 1_000_000L)
+                                }
+                            }.getOrNull()
+                        }
+                    }.awaitAll().filterNotNull()
+                }
+            }
+
             val udpResults = udpTask.await()
             if (udpResults.isNotEmpty()) return@withContext udpResults
 
-            // Fallback: Parallel subnet TCP probe if UDP broadcast is blocked by router AP isolation
-            val activeIps = getActiveLocalIps()
-            val tcpCandidates = activeIps.flatMap { ip ->
-                val prefix = ip.substringBeforeLast(".")
-                (1..254).map { "$prefix.$it" }
-            }.distinct()
-
-            // Parallel probe first 30 most likely hosts or active subnet IPs
-            val tcpResults = tcpCandidates.take(60).chunked(15).flatMap { chunk ->
-                chunk.map { candidate ->
-                    async {
-                        runCatching {
-                            Socket().use { socket ->
-                                socket.connect(InetSocketAddress(candidate, 45101), 350)
-                                DiscoveredDesktop("Axis PC ($candidate)", candidate, 45101, 1, (System.nanoTime() - sentAt) / 1_000_000L)
-                            }
-                        }.getOrNull()
-                    }
-                }.awaitAll().filterNotNull()
-            }
-
+            val tcpResults = tcpTask.await()
             tcpResults
         } finally { lock?.release() }
     }
 
-    suspend fun probe(address: InetAddress, timeoutMillis: Int = 2_000): DiscoveredDesktop? = withContext(Dispatchers.IO) {
+    suspend fun probe(address: InetAddress, timeoutMillis: Int = 1_500): DiscoveredDesktop? = withContext(Dispatchers.IO) {
         val nonce = ThreadLocalRandom.current().nextLong()
         val sentAt = System.nanoTime()
 
@@ -104,10 +106,10 @@ class WifiDiscoveryManager(private val context: Context) {
 
         if (udpResult != null) return@withContext udpResult
 
-        // 2. Fallback: Direct TCP Probe on Pairing Port 45101 (bypasses UDP router filters)
+        // 2. Fallback: Direct TCP Probe on Pairing Port 45101
         runCatching {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress(address, 45101), 1_500)
+                socket.connect(InetSocketAddress(address, 45101), 1_200)
                 val hostStr = address.hostAddress ?: ""
                 DiscoveredDesktop("Axis PC ($hostStr)", hostStr, 45101, 1, (System.nanoTime() - sentAt) / 1_000_000L)
             }
