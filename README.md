@@ -1,6 +1,6 @@
-# RaceLink
+# Axis
 
-RaceLink turns an Android phone into a low-latency steering controller and dashboard for a paired Windows companion.
+Axis turns an Android phone into a low-latency steering controller and dashboard for a paired Windows companion.
 
 ## Current milestone
 
