@@ -7,32 +7,38 @@ import android.os.Vibrator
 import android.os.VibratorManager
 
 class HapticsManager(context: Context) {
-    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-        manager?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-    }
+    private val vibrator: Vibrator? = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            manager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }.getOrNull()
 
     fun tick() {
-        vibrator?.takeIf { it.hasVibrator() }?.let { v ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-            } else {
-                @Suppress("DEPRECATION")
-                v.vibrate(12)
+        runCatching {
+            vibrator?.takeIf { it.hasVibrator() }?.let { v ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.vibrate(12)
+                }
             }
         }
     }
 
     fun heavyClick() {
-        vibrator?.takeIf { it.hasVibrator() }?.let { v ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
-            } else {
-                @Suppress("DEPRECATION")
-                v.vibrate(35)
+        runCatching {
+            vibrator?.takeIf { it.hasVibrator() }?.let { v ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.vibrate(35)
+                }
             }
         }
     }

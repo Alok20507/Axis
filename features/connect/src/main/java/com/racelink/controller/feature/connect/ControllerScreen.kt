@@ -1,6 +1,7 @@
 package com.racelink.controller.feature.connect
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,15 +34,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.racelink.controller.core.ui.R
 import kotlin.math.atan2
 
 @Composable
@@ -78,14 +83,21 @@ private fun ControllerScreen(
     onBack: () -> Unit,
 ) {
     Surface(
-        color = Color(0xFF0D0E11),
+        color = Color(0xFF090A0C),
         contentColor = Color.White,
         modifier = Modifier.fillMaxSize()
     ) {
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            // Header Bar
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            // Header Bar (Safe padding from status bar / camera cutout)
             Row(
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -94,13 +106,13 @@ private fun ControllerScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2026)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("← Back", color = Color.White)
+                    Text("← Back", color = Color.White, fontSize = 13.sp)
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFD6FF61)))
-                    Text(state.hostAddress.ifBlank { "PC Companion" }, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD6FF61)))
+                    Text(state.hostAddress.ifBlank { "PC Companion" }, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("120 Hz", color = Color(0xFFD6FF61), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Button(
@@ -111,30 +123,41 @@ private fun ControllerScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (state.useGyro) "Gyro ON" else "Gyro OFF", fontWeight = FontWeight.SemiBold)
+                    Text(if (state.useGyro) "Gyro ON" else "Gyro OFF", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Main Controller Layout Grid (Left Pedals | Center Wheel & D-Pad | Right Throttle & ABXY)
-            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                // Left Controls: Brake Pedal & Handbrake
+            // Main Controller Workspace Grid
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left Controls Column: Brake & Handbrake
                 Column(
-                    modifier = Modifier.width(110.dp).fillMaxHeight(),
+                    modifier = Modifier
+                        .width(72.dp)
+                        .fillMaxHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     PedalSlider(
                         value = state.brake,
                         onValueChange = onBrakeChange,
                         fillColor = Color(0xFFFF4D4D),
-                        modifier = Modifier.weight(1f).fillMaxWidth()
+                        modifier = Modifier
+                            .weight(1f)
+                            .width(52.dp)
                     )
                     Button(
                         onClick = {},
-                        modifier = Modifier.fillMaxWidth().height(64.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = { onHandbrakeToggle(true) },
@@ -143,28 +166,38 @@ private fun ControllerScreen(
                                     onDrag = { _, _ -> }
                                 )
                             },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
                     ) {
-                        Text("HANDBRAKE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("HAND\nBRAKE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(12.dp))
 
-                // Center: Axis Interactive Steering Wheel
+                // Center Column: Steering Wheel & Angle Readout
                 Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    InteractiveSteeringWheel(
-                        steering = state.steering,
-                        onSteeringChange = onSteeringChange,
-                        modifier = Modifier.size(240.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        InteractiveSteeringWheel(
+                            steering = state.steering,
+                            onSteeringChange = onSteeringChange,
+                            modifier = Modifier.size(200.dp)
+                        )
+                        // Axis Brand Icon in Hub
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_axis_logo),
+                            contentDescription = "Axis Logo Hub",
+                            modifier = Modifier.size(44.dp).clip(CircleShape)
+                        )
+                    }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
 
                     Text(
                         text = "Steering: ${(state.steering * 100).toInt()}%",
@@ -174,33 +207,42 @@ private fun ControllerScreen(
                     )
                 }
 
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(12.dp))
 
-                // Right Controls: Throttle Pedal & ABXY Diamond Cluster
+                // Right Controls Column: Throttle & ABXY Buttons
                 Column(
-                    modifier = Modifier.width(140.dp).fillMaxHeight(),
+                    modifier = Modifier
+                        .width(120.dp)
+                        .fillMaxHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         PedalSlider(
                             value = state.throttle,
                             onValueChange = onThrottleChange,
                             fillColor = Color(0xFFD6FF61),
-                            modifier = Modifier.width(54.dp).fillMaxHeight()
+                            modifier = Modifier
+                                .width(52.dp)
+                                .fillMaxHeight()
                         )
 
-                        Spacer(Modifier.width(12.dp))
-
-                        // ABXY Diamond Buttons
+                        // ABXY Diamond Button Cluster
                         Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                            verticalArrangement = Arrangement.SpaceAround,
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             ControllerButton("Y", Color(0xFFFFD166)) { onButtonFlag(0x8000.toShort(), it) }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 ControllerButton("X", Color(0xFF118AB2)) { onButtonFlag(0x4000.toShort(), it) }
                                 ControllerButton("B", Color(0xFFEF476F)) { onButtonFlag(0x2000.toShort(), it) }
                             }
@@ -222,8 +264,8 @@ private fun PedalSlider(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF1A1C23))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF16181F))
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
@@ -282,7 +324,7 @@ private fun InteractiveSteeringWheel(
             }
     ) {
         val center = Offset(size.width / 2f, size.height / 2f)
-        val radius = size.minDimension / 2f - 16.dp.toPx()
+        val radius = size.minDimension / 2f - 12.dp.toPx()
         val rotationAngle = steering * 180f
 
         rotate(rotationAngle, pivot = center) {
@@ -291,7 +333,7 @@ private fun InteractiveSteeringWheel(
                 color = Color(0xFF1E2027),
                 radius = radius,
                 center = center,
-                style = Stroke(width = 28.dp.toPx())
+                style = Stroke(width = 24.dp.toPx())
             )
 
             // Top Neon Center Marker
@@ -301,8 +343,8 @@ private fun InteractiveSteeringWheel(
                 sweepAngle = 20f,
                 useCenter = false,
                 topLeft = Offset(center.x - radius, center.y - radius),
-                size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
-                style = Stroke(width = 28.dp.toPx())
+                size = Size(radius * 2, radius * 2),
+                style = Stroke(width = 24.dp.toPx())
             )
 
             // Inner Metallic Spokes (X-Shape)
@@ -312,11 +354,10 @@ private fun InteractiveSteeringWheel(
                 moveTo(center.x + radius * 0.7f, center.y - radius * 0.7f)
                 lineTo(center.x - radius * 0.7f, center.y + radius * 0.7f)
             }
-            drawPath(path, color = Color(0xFF353842), style = Stroke(width = 12.dp.toPx()))
+            drawPath(path, color = Color(0xFF353842), style = Stroke(width = 10.dp.toPx()))
 
-            // Center Axis Hub
-            drawCircle(color = Color(0xFF121316), radius = radius * 0.28f, center = center)
-            drawCircle(color = Color(0xFFD6FF61), radius = radius * 0.28f, center = center, style = Stroke(width = 3.dp.toPx()))
+            // Center Axis Ring
+            drawCircle(color = Color(0xFFD6FF61), radius = radius * 0.32f, center = center, style = Stroke(width = 2.dp.toPx()))
         }
     }
 }
@@ -330,7 +371,7 @@ private fun ControllerButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(38.dp)
+            .size(34.dp)
             .clip(CircleShape)
             .background(color.copy(alpha = 0.9f))
             .pointerInput(Unit) {
@@ -342,6 +383,6 @@ private fun ControllerButton(
                 )
             }
     ) {
-        Text(text, color = Color.Black, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
