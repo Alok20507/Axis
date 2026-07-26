@@ -122,7 +122,7 @@ private fun ControllerScreen(
                 // Left Controls: Brake Pedal & Handbrake
                 Column(
                     modifier = Modifier.width(110.dp).fillMaxHeight(),
-                    horizontalAlignment = Alignment.CenterAlignment,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 12.sp, fontWeight = FontWeight.Bold)
