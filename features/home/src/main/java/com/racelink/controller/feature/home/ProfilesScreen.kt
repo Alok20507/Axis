@@ -34,7 +34,10 @@ import androidx.compose.ui.unit.sp
 import com.racelink.controller.core.storage.ControllerPreferencesStore
 
 @Composable
-fun ProfilesScreen(onBack: () -> Unit) {
+fun ProfilesScreen(
+    onBack: () -> Unit,
+    onCustomizeProfileLayout: (String) -> Unit
+) {
     val context = LocalContext.current
     val store = remember { ControllerPreferencesStore(context) }
     var selectedProfile by remember { mutableStateOf(store.currentProfile) }
@@ -68,11 +71,11 @@ fun ProfilesScreen(onBack: () -> Unit) {
                 ) {
                     Text("← Back", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text("Controller Profiles", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Layout Profiles", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
 
             Text(
-                "Create, customize, and save custom button placement profiles for your PC games.",
+                "Create layout profiles and customize button positions & sizes for each profile.",
                 color = MaterialTheme.colorScheme.secondary,
                 fontSize = 14.sp
             )
@@ -83,19 +86,29 @@ fun ProfilesScreen(onBack: () -> Unit) {
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("➕ Create New Profile", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("➕ Create Custom Profile", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
 
             profileList.forEach { profileName ->
                 ProfileOptionCard(
                     title = profileName,
-                    subtitle = if (profileName == selectedProfile) "Active Layout Profile" else "Saved Custom Profile",
-                    details = "Stores customized button sizes, coordinates, and analog placement.",
                     isSelected = selectedProfile == profileName,
                     onSelect = {
                         selectedProfile = profileName
                         store.currentProfile = profileName
                     },
+                    onCustomize = {
+                        selectedProfile = profileName
+                        store.currentProfile = profileName
+                        onCustomizeProfileLayout(profileName)
+                    },
+                    onDelete = if (profileName != "Default Profile") {
+                        {
+                            store.deleteCustomProfile(profileName)
+                            selectedProfile = store.currentProfile
+                            profileList = store.customProfileNames.toList()
+                        }
+                    } else null,
                     onResetLayout = {
                         store.resetLayout(profileName, "GAMEPAD")
                         store.resetLayout(profileName, "RACING")
@@ -108,10 +121,10 @@ fun ProfilesScreen(onBack: () -> Unit) {
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create New Profile") },
+            title = { Text("Create Custom Layout Profile") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter a custom profile name (e.g. God of War Layout, GTA V Driving, Forza Wheel).")
+                    Text("Enter a name for your custom layout profile (e.g. My Driving Layout, Custom Gamepad).")
                     OutlinedTextField(
                         value = newProfileName,
                         onValueChange = { newProfileName = it },
@@ -125,16 +138,18 @@ fun ProfilesScreen(onBack: () -> Unit) {
                 Button(
                     onClick = {
                         if (newProfileName.isNotBlank()) {
-                            store.addCustomProfile(newProfileName.trim())
-                            selectedProfile = newProfileName.trim()
+                            val name = newProfileName.trim()
+                            store.addCustomProfile(name)
+                            selectedProfile = name
                             profileList = store.customProfileNames.toList()
                             newProfileName = ""
                             showCreateDialog = false
+                            onCustomizeProfileLayout(name)
                         }
                     },
                     enabled = newProfileName.isNotBlank()
                 ) {
-                    Text("Create Profile")
+                    Text("Create & Edit Layout")
                 }
             },
             dismissButton = {
@@ -149,10 +164,10 @@ fun ProfilesScreen(onBack: () -> Unit) {
 @Composable
 private fun ProfileOptionCard(
     title: String,
-    subtitle: String,
-    details: String,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    onCustomize: () -> Unit,
+    onDelete: (() -> Unit)?,
     onResetLayout: () -> Unit
 ) {
     Surface(
@@ -162,8 +177,8 @@ private fun ProfileOptionCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -177,28 +192,41 @@ private fun ProfileOptionCard(
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
                 if (isSelected) {
-                    Text("ACTIVE", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    Text("ACTIVE FOR PC", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                 }
             }
-            Text(
-                subtitle,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                details,
-                fontSize = 13.sp,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondary
-            )
-            
-            if (isSelected) {
-                OutlinedButton(
-                    onClick = onResetLayout,
-                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
-                    shape = RoundedCornerShape(10.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onCustomize,
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("Reset Layout to Default", fontSize = 12.sp)
+                    Text("✏️ Move & Resize Controls", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                if (onDelete != null) {
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.height(42.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("🗑️ Delete", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+
+            if (isSelected) {
+                TextButton(
+                    onClick = onResetLayout,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Reset Layout Positions", fontSize = 12.sp)
                 }
             }
         }

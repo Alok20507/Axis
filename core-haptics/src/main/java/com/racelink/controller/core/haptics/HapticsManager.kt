@@ -4,41 +4,45 @@ import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.os.VibratorManager
 
 class HapticsManager(context: Context) {
+    @Suppress("DEPRECATION")
     private val vibrator: Vibrator? = runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            manager?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        }
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }.getOrNull()
 
     fun tick() {
         runCatching {
-            vibrator?.takeIf { it.hasVibrator() }?.let { v ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-                } else {
-                    @Suppress("DEPRECATION")
-                    v.vibrate(12)
-                }
+            val v = vibrator ?: return@runCatching
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(18)
             }
         }
     }
 
     fun heavyClick() {
         runCatching {
-            vibrator?.takeIf { it.hasVibrator() }?.let { v ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
-                } else {
-                    @Suppress("DEPRECATION")
-                    v.vibrate(35)
-                }
+            val v = vibrator ?: return@runCatching
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createOneShot(45, 255))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(45)
+            }
+        }
+    }
+
+    fun rumble(durationMs: Long = 60, amplitude: Int = 220) {
+        runCatching {
+            val v = vibrator ?: return@runCatching
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createOneShot(durationMs, amplitude.coerceIn(1, 255)))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(durationMs)
             }
         }
     }

@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,15 +38,13 @@ fun HomeRoute(
     onConnect: () -> Unit,
     onProfiles: () -> Unit,
     onSettings: () -> Unit,
-    onCustomizeLayout: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     HomeScreen(
         state = state,
         onConnect = onConnect,
         onProfiles = onProfiles,
-        onSettings = onSettings,
-        onCustomizeLayout = onCustomizeLayout
+        onSettings = onSettings
     )
 }
 
@@ -57,7 +54,6 @@ private fun HomeScreen(
     onConnect: () -> Unit,
     onProfiles: () -> Unit,
     onSettings: () -> Unit,
-    onCustomizeLayout: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -92,16 +88,7 @@ private fun HomeScreen(
             Text("🎮 Connect to PC", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
 
-        // Secondary Action: Test & Customize Layout (Offline Editor)
-        OutlinedButton(
-            onClick = onCustomizeLayout,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Text("✏️ Test & Customize Button Layout", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        }
-
-        // Tertiary Action: Saved Profiles
+        // Action: Custom Layout Profiles (Create & Customize layouts per profile)
         Surface(
             onClick = onProfiles,
             color = MaterialTheme.colorScheme.surface,
@@ -109,12 +96,15 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("📁 Custom Layout Profiles", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text("→", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("📁 Controller Layout Profiles", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text("Create, customize & select button layouts", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp)
+                }
+                Text("→", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
             }
         }
 
@@ -125,12 +115,12 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("⚙️ Controller Preferences", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text("→", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                Text("⚙️ Controller Preferences", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text("→", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
             }
         }
     }

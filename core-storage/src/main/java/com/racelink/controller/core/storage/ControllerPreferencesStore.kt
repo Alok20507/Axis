@@ -21,7 +21,7 @@ class ControllerPreferencesStore(context: Context) {
         set(value) = prefs.edit().putFloat("stick_sensitivity", value).apply()
 
     var deadzone: Float
-        get() = prefs.getFloat("deadzone", 0.05f)
+        get() = prefs.getFloat("deadzone", 0.04f)
         set(value) = prefs.edit().putFloat("deadzone", value).apply()
 
     var hapticsEnabled: Boolean
@@ -33,7 +33,7 @@ class ControllerPreferencesStore(context: Context) {
         set(value) = prefs.edit().putString("current_profile", value).apply()
 
     var customProfileNames: Set<String>
-        get() = prefs.getStringSet("custom_profile_names", setOf("Default Profile", "God of War Layout", "GTA V Layout", "Racing Wheel Pro")) ?: setOf("Default Profile")
+        get() = prefs.getStringSet("custom_profile_names", setOf("Default Profile")) ?: setOf("Default Profile")
         set(value) = prefs.edit().putStringSet("custom_profile_names", value).apply()
 
     fun addCustomProfile(name: String) {
@@ -41,6 +41,16 @@ class ControllerPreferencesStore(context: Context) {
         set.add(name)
         customProfileNames = set
         currentProfile = name
+    }
+
+    fun deleteCustomProfile(name: String) {
+        if (name == "Default Profile") return
+        val set = customProfileNames.toMutableSet()
+        set.remove(name)
+        customProfileNames = set
+        if (currentProfile == name) {
+            currentProfile = "Default Profile"
+        }
     }
 
     fun getTransform(profile: String, mode: String, element: String): ControlElementTransform {
@@ -60,7 +70,10 @@ class ControllerPreferencesStore(context: Context) {
 
     fun resetLayout(profile: String, mode: String) {
         val editor = prefs.edit()
-        listOf("left_stick", "right_stick", "dpad", "action_buttons", "wheel", "triggers").forEach { element ->
+        listOf(
+            "left_stick", "right_stick", "dpad", "action_buttons", "left_triggers", "right_triggers",
+            "wheel", "brake_pedal", "throttle_pedal", "handbrake_button", "wheel_action_buttons"
+        ).forEach { element ->
             editor.remove("elem_${profile}_${mode}_${element}_x")
             editor.remove("elem_${profile}_${mode}_${element}_y")
             editor.remove("elem_${profile}_${mode}_${element}_scale")

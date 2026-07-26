@@ -48,7 +48,6 @@ private fun RaceLinkApp() {
                     onConnect = { navController.navigate("connect") },
                     onProfiles = { navController.navigate("profiles") },
                     onSettings = { navController.navigate("settings") },
-                    onCustomizeLayout = { navController.navigate("controller/preview/preview") }
                 )
             }
 
@@ -86,7 +85,13 @@ private fun RaceLinkApp() {
                 )
             }
 
-            composable("profiles") { ProfilesScreen(onBack = { navController.popBackStack() }) }
+            composable("profiles") {
+                ProfilesScreen(
+                    onBack = { navController.popBackStack() },
+                    onCustomizeProfileLayout = { navController.navigate("controller/preview/preview") }
+                )
+            }
+
             composable("settings") { SettingsScreen(onBack = { navController.popBackStack() }) }
         }
     }

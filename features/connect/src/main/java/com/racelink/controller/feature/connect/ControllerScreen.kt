@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,9 +61,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.racelink.controller.core.haptics.HapticsManager
 import com.racelink.controller.core.storage.ControlElementTransform
 import com.racelink.controller.core.storage.ControllerPreferencesStore
 import com.racelink.controller.core.ui.R
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
 
@@ -207,14 +208,14 @@ private fun ControllerScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Zero Gyro Center Recalibration Button
+                    // Recalibrate Gyro Center Neutral Point Button
                     Button(
                         onClick = onRecalibrateGyro,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E212B)),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.height(28.dp)
                     ) {
-                        Text("🎯 Zero Gyro", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00F0FF))
+                        Text("🎯 Recalibrate Center", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00F0FF))
                     }
 
                     // Edit Layout Toggle Button
@@ -411,47 +412,50 @@ private fun RacingWheelView(
 ) {
     Row(
         modifier = Modifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceAround
     ) {
-        // Left Column: Brake & Handbrake
+        // 1. Separate Draggable Brake Pedal
         DraggableControlContainer("brake_pedal", store, store.currentProfile, "RACING", isEditMode) {
             Column(
-                modifier = Modifier.width(68.dp).fillMaxHeight(),
+                modifier = Modifier.width(64.dp).fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("BRAKE", color = Color(0xFFFF4D4D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 PedalSlider(
                     value = state.brake,
                     onValueChange = onBrakeChange,
                     fillColor = Color(0xFFFF4D4D),
-                    modifier = Modifier.weight(1f).width(48.dp)
+                    modifier = Modifier.fillMaxHeight(0.85f).width(48.dp)
                 )
-                Button(
-                    onClick = {},
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp)
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                down.consume()
-                                onHandbrakeToggle(true)
-                                val up = waitForUpOrCancellation()
-                                onHandbrakeToggle(false)
-                            }
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7A1C1C))
-                ) {
-                    Text("HANDBRAKE", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                }
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        // 2. Separate Draggable Handbrake Button
+        DraggableControlContainer("handbrake_button", store, store.currentProfile, "RACING", isEditMode) {
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .width(72.dp)
+                    .height(54.dp)
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            onHandbrakeToggle(true)
+                            val up = waitForUpOrCancellation()
+                            onHandbrakeToggle(false)
+                        }
+                    },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9E1B1B))
+            ) {
+                Text("HANDBRAKE", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
 
-        // Center Column: Steering Wheel
+        // 3. Separate Draggable 360° Steering Wheel with Rotation Haptics
         DraggableControlContainer("wheel", store, store.currentProfile, "RACING", isEditMode, modifier = Modifier.weight(1f)) {
             Column(
                 modifier = Modifier.fillMaxHeight(),
@@ -462,15 +466,15 @@ private fun RacingWheelView(
                     InteractiveSteeringWheel(
                         steering = state.leftStickX,
                         onSteeringChange = onSteeringChange,
-                        modifier = Modifier.size(185.dp)
+                        modifier = Modifier.size(195.dp)
                     )
                     Image(
                         painter = painterResource(id = R.drawable.ic_axis_logo),
                         contentDescription = "Axis Logo",
-                        modifier = Modifier.size(38.dp).clip(CircleShape)
+                        modifier = Modifier.size(40.dp).clip(CircleShape)
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = "Steering: ${(state.leftStickX * 100).toInt()}%",
                     color = Color(0xFFD6FF61),
@@ -480,42 +484,36 @@ private fun RacingWheelView(
             }
         }
 
-        Spacer(Modifier.width(12.dp))
-
-        // Right Column: Throttle & ABXY Buttons
+        // 4. Separate Draggable Throttle Pedal
         DraggableControlContainer("throttle_pedal", store, store.currentProfile, "RACING", isEditMode) {
             Column(
-                modifier = Modifier.width(120.dp).fillMaxHeight(),
+                modifier = Modifier.width(64.dp).fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("THROTTLE", color = Color(0xFFD6FF61), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                PedalSlider(
+                    value = state.throttle,
+                    onValueChange = onThrottleChange,
+                    fillColor = Color(0xFFD6FF61),
+                    modifier = Modifier.fillMaxHeight(0.85f).width(48.dp)
+                )
+            }
+        }
 
-                Row(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PedalSlider(
-                        value = state.throttle,
-                        onValueChange = onThrottleChange,
-                        fillColor = Color(0xFFD6FF61),
-                        modifier = Modifier.width(48.dp).fillMaxHeight()
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxHeight(),
-                        verticalArrangement = Arrangement.SpaceEvenly,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
-                            SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
-                        }
-                        SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
-                    }
+        // 5. Separate Draggable Action Buttons Cluster (ABXY)
+        DraggableControlContainer("wheel_action_buttons", store, store.currentProfile, "RACING", isEditMode) {
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                SonyActionButton("Y", Color(0xFFFFB703)) { onButtonFlag(0x8000.toShort(), it) }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SonyActionButton("X", Color(0xFF00F0FF)) { onButtonFlag(0x4000.toShort(), it) }
+                    SonyActionButton("B", Color(0xFFFF2E63)) { onButtonFlag(0x2000.toShort(), it) }
                 }
+                SonyActionButton("A", Color(0xFF00E676)) { onButtonFlag(0x1000.toShort(), it) }
             }
         }
     }
@@ -619,6 +617,9 @@ private fun SonyAnalogJoystick(
     onValueChange: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -628,6 +629,7 @@ private fun SonyAnalogJoystick(
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
+                        haptics.tick()
                         val radius = size.width / 2f
                         val dx = (offset.x - radius) / radius
                         val dy = -(offset.y - radius) / radius
@@ -679,6 +681,8 @@ private fun SonyActionButton(
     accentColor: Color,
     onPress: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -694,6 +698,7 @@ private fun SonyActionButton(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
                     isPressed = true
+                    haptics.tick()
                     onPress(true)
                     val up = waitForUpOrCancellation()
                     isPressed = false
@@ -717,6 +722,9 @@ private fun SonyAdaptiveTrigger(
     accentColor: Color,
     onValueChange: (Float) -> Unit,
 ) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -729,6 +737,7 @@ private fun SonyAdaptiveTrigger(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
+                    haptics.tick()
                     onValueChange(1f)
                     val up = waitForUpOrCancellation()
                     onValueChange(0f)
@@ -753,6 +762,8 @@ private fun SonyAdaptiveTrigger(
 
 @Composable
 private fun SonyBumperButton(text: String, flag: Short, onButtonFlag: (Short, Boolean) -> Unit) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -768,6 +779,7 @@ private fun SonyBumperButton(text: String, flag: Short, onButtonFlag: (Short, Bo
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
                     isPressed = true
+                    haptics.tick()
                     onButtonFlag(flag, true)
                     val up = waitForUpOrCancellation()
                     isPressed = false
@@ -781,6 +793,9 @@ private fun SonyBumperButton(text: String, flag: Short, onButtonFlag: (Short, Bo
 
 @Composable
 private fun SonyPillButton(text: String, flag: Short, onButtonFlag: (Short, Boolean) -> Unit) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
@@ -792,6 +807,7 @@ private fun SonyPillButton(text: String, flag: Short, onButtonFlag: (Short, Bool
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
+                    haptics.tick()
                     onButtonFlag(flag, true)
                     val up = waitForUpOrCancellation()
                     onButtonFlag(flag, false)
@@ -817,6 +833,8 @@ private fun SonyDPadCluster(onButtonFlag: (Short, Boolean) -> Unit) {
 
 @Composable
 private fun SonyDPadButton(arrow: String, flag: Short, onButtonFlag: (Short, Boolean) -> Unit) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
     var isPressed by remember { mutableStateOf(false) }
 
     Box(
@@ -831,6 +849,7 @@ private fun SonyDPadButton(arrow: String, flag: Short, onButtonFlag: (Short, Boo
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
                     isPressed = true
+                    haptics.tick()
                     onButtonFlag(flag, true)
                     val up = waitForUpOrCancellation()
                     isPressed = false
@@ -842,8 +861,6 @@ private fun SonyDPadButton(arrow: String, flag: Short, onButtonFlag: (Short, Boo
     }
 }
 
-
-
 @Composable
 private fun PedalSlider(
     value: Float,
@@ -851,6 +868,9 @@ private fun PedalSlider(
     fillColor: Color,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
+
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -859,10 +879,12 @@ private fun PedalSlider(
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
+                        haptics.tick()
                         val pct = 1f - (offset.y / size.height.toFloat()).coerceIn(0f, 1f)
                         onValueChange(pct)
                     },
                     onDrag = { change, _ ->
+                        haptics.rumble(25, 170)
                         val pct = 1f - (change.position.y / size.height.toFloat()).coerceIn(0f, 1f)
                         onValueChange(pct)
                     },
@@ -887,14 +909,19 @@ private fun InteractiveSteeringWheel(
     onSteeringChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val haptics = remember(context) { HapticsManager(context) }
+
     var accumulatedSteering by remember { mutableFloatStateOf(0f) }
     var startTouchAngle by remember { mutableFloatStateOf(0f) }
+    var lastHapticSteering by remember { mutableFloatStateOf(0f) }
 
     Canvas(
         modifier = modifier
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
+                        haptics.tick()
                         val center = Offset(size.width / 2f, size.height / 2f)
                         startTouchAngle = atan2(offset.y - center.y, offset.x - center.x)
                     },
@@ -909,6 +936,17 @@ private fun InteractiveSteeringWheel(
 
                         val deltaNormalized = deltaRad / (Math.PI.toFloat() * 0.5f) // 90 deg = 100% lock
                         val targetSteering = (accumulatedSteering + deltaNormalized).coerceIn(-1f, 1f)
+
+                        // Tactile haptic feedback on wheel rotation ticks
+                        if (abs(targetSteering - lastHapticSteering) > 0.12f) {
+                            haptics.tick()
+                            lastHapticSteering = targetSteering
+                        }
+
+                        // Max Steering Lock Crash Rumble
+                        if (abs(targetSteering) >= 0.98f && abs(accumulatedSteering) < 0.98f) {
+                            haptics.rumble(80, 255)
+                        }
 
                         accumulatedSteering = targetSteering
                         onSteeringChange(targetSteering)
