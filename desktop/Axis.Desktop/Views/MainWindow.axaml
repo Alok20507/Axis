@@ -1,21 +1,28 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Axis.Desktop.Views.MainWindow" Width="620" Height="520" Title="Axis Desktop" Icon="/Assets/axis_icon.png">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Axis.Desktop.Views.MainWindow" Width="640" Height="560" Title="Axis Desktop" Icon="/Assets/axis_icon.png">
   <Border Background="#090A0C" Padding="32"><StackPanel Spacing="16">
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
-      <Image Source="/Assets/axis_icon.png" Width="40" Height="40"/>
+      <Image Source="/Assets/axis_icon.png" Width="44" Height="44"/>
       <StackPanel VerticalAlignment="Center">
         <TextBlock Text="AXIS" Foreground="#D6FF61" FontWeight="Bold" FontSize="14" LetterSpacing="3"/>
         <TextBlock Text="Desktop companion" Foreground="White" FontSize="26" FontWeight="SemiBold"/>
       </StackPanel>
     </StackPanel>
+
     <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="8">
       <TextBlock Text="{Binding DiscoveryStatus}" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
       <TextBlock Text="{Binding LanAddress}" Foreground="#B7C7D6" FontSize="16"/>
-      <TextBlock Text="UDP discovery port 45100" Foreground="#B7C7D6"/>
+      <TextBlock Text="UDP discovery: 45100 | TCP pairing: 45101 | UDP control: 45102" Foreground="#B7C7D6" FontSize="13"/>
     </StackPanel></Border>
+
+    <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="8">
+      <TextBlock Text="Pairing & Encryption" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding PairingStatus}" Foreground="#D6FF61" FontSize="18" FontWeight="Bold"/>
+      <TextBlock Text="{Binding ConnectionStatus}" Foreground="#B7C7D6" FontSize="14"/>
+    </StackPanel></Border>
+
     <Border Background="#17191D" CornerRadius="20" Padding="22"><StackPanel Spacing="6">
       <TextBlock Text="Diagnostics" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
       <TextBlock Text="{Binding LastDiscovery}" Foreground="#B7C7D6"/>
-      <TextBlock Text="Virtual controller: no signed backend selected" Foreground="#FFB4AB"/>
     </StackPanel></Border>
     <TextBlock Text="Keep this window open and connect Axis on the same Wi-Fi network." Foreground="#B7C7D6" TextWrapping="Wrap"/>
   </StackPanel></Border>

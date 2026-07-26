@@ -4,6 +4,9 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation(project(":core-ui"))
     api(project(":core-network"))
+    implementation(project(":core-sensors"))
+    implementation(project(":core-haptics"))
+    implementation(project(":core-storage"))
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 }

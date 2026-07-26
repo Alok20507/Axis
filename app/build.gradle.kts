@@ -29,6 +29,7 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
     implementation(project(":core-ui"))
+    implementation(project(":core-sensors"))
     implementation(project(":features:home"))
     implementation(project(":features:connect"))
     implementation(project(":features:calibration"))
